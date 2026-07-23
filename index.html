@@ -40,12 +40,11 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .edit-grid input{width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:14px}
 .searchbar{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);margin-bottom:12px;font-size:15px}
 .fab{position:fixed;right:16px;bottom:calc(80px + env(safe-area-inset-bottom));background:var(--accent);color:#fff;width:52px;height:52px;border-radius:50%;font-size:26px;box-shadow:0 4px 10px rgba(0,0,0,.2);z-index:10}
-nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:20}
-.nav-btn{flex:1;background:none;padding:10px 0 8px;text-align:center;color:var(--muted);font-size:12px;position:relative;transition:color .15s,background .15s}
-.nav-btn.active{color:var(--accent);font-weight:700;background:#f0fdfa}
-.nav-btn.active::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:32px;height:3px;border-radius:0 0 4px 4px;background:var(--accent)}
+nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);display:flex;gap:6px;padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:20}
+.nav-btn{flex:1;background:none;padding:8px 2px;text-align:center;color:var(--muted);font-size:12px;border-radius:12px;transition:background .15s,color .15s,transform .15s}
+.nav-btn.active{background:var(--accent);color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(15,118,110,.35)}
 .nav-btn div{font-size:20px;transition:transform .15s}
-.nav-btn.active div{transform:scale(1.1)}
+.nav-btn.active div{transform:translateY(-1px)}
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60;align-items:flex-end}
 .modal-bg.show{display:flex}
 .modal{background:#fff;width:100%;border-radius:16px 16px 0 0;padding:0;max-height:88vh;overflow:auto;animation:slideup .2s ease-out}
@@ -98,7 +97,10 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
 
 <!-- ONGLET COMMANDES -->
 <div class="tab" id="tab-commande">
-  <button class="btn secondary" id="refresh-suggestion" onclick="loadSuggestion()">🔄 Actualiser la suggestion</button>
+  <div class="row-actions" style="margin-bottom:12px">
+    <button class="btn secondary" onclick="loadSuggestion()">🔄 Actualiser la suggestion</button>
+    <button class="btn secondary" onclick="openBuyerModal()">👤 Mes coordonnées</button>
+  </div>
   <div id="order-list" style="margin-top:14px"></div>
   <div class="total" id="order-total">Total : 0.00 €</div>
   <div class="field">
@@ -132,7 +134,7 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
 <div class="toast" id="toast"></div>
 
 <!-- MODAL CREATION PRODUIT -->
-<div class="modal-bg" id="modal-bg" onmousedown="if(event.target===this) closeModal()">
+<div class="modal-bg" id="modal-bg" data-submit="submitCreate" onmousedown="if(event.target===this) closeModal()">
   <div class="modal">
     <div class="modal-head">
       <h3>Nouveau produit</h3>
@@ -158,6 +160,29 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
       <div class="row-actions">
         <button class="btn secondary" type="button" onclick="closeModal()">Annuler</button>
         <button class="btn" id="submit-create-btn" onclick="submitCreate()">Créer la fiche</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL COORDONNÉES ACHETEUR -->
+<div class="modal-bg" id="buyer-modal-bg" data-submit="saveBuyerInfo" onmousedown="if(event.target===this) closeBuyerModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Mes coordonnées acheteur</h3>
+      <button class="modal-close" type="button" onclick="closeBuyerModal()" aria-label="Fermer">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:12px">Ces informations apparaissent sur le PDF de commande et sont enregistrées : inutile de les ressaisir la prochaine fois.</div>
+      <div class="field"><label>Nom / Salon</label><input id="b-nom" placeholder="ex: Salon Belle Coiffure"></div>
+      <div class="field"><label>Adresse</label><input id="b-adresse" placeholder="12 rue des Fleurs, 75000 Paris"></div>
+      <div class="field-grid-2">
+        <div class="field"><label>Téléphone</label><input id="b-telephone" type="tel" placeholder="06 12 34 56 78"></div>
+        <div class="field"><label>Email</label><input id="b-email" type="email" placeholder="contact@salon.fr"></div>
+      </div>
+      <div class="row-actions">
+        <button class="btn secondary" type="button" onclick="closeBuyerModal()">Annuler</button>
+        <button class="btn" id="save-buyer-btn" onclick="saveBuyerInfo()">Enregistrer</button>
       </div>
     </div>
   </div>
@@ -205,6 +230,7 @@ async function callAPI(action, payload = {}, method = 'POST') {
 
 window.addEventListener('DOMContentLoaded', () => {
   startScanner('reader-sortie');
+  loadSessionFromHistory('sortie');
 });
 
 function switchTab(tab){
@@ -214,8 +240,8 @@ function switchTab(tab){
   document.getElementById('nav-'+tab).classList.add('active');
   scanMode = tab;
 
-  if(tab==='sortie') startScanner('reader-sortie');
-  else if(tab==='reception') startScanner('reader-reception');
+  if(tab==='sortie'){ startScanner('reader-sortie'); loadSessionFromHistory('sortie'); }
+  else if(tab==='reception'){ startScanner('reader-reception'); loadSessionFromHistory('reception'); }
   else stopScanner();
 
   if(tab==='stock') loadStock();
@@ -319,6 +345,23 @@ function renderSession(mode){
     li.children[0].textContent = it.nom;
     li.children[1].textContent = 'x'+it.qte;
     ul.appendChild(li);
+  });
+}
+
+// Reconstruit la liste (Sortie/Réception) à partir de l'historique persisté
+// côté Google Sheet, pour qu'elle survive à un rafraîchissement de page.
+function loadSessionFromHistory(mode){
+  const type = mode === 'sortie' ? 'Sortie' : 'Entrée';
+  const today = new Date();
+  const dateStr = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  callAPI('getHistory', { limit: 50, type, date: dateStr }, 'GET').then(list => {
+    const data = mode === 'sortie' ? sessionSortie : sessionReception;
+    Object.keys(data).forEach(k => delete data[k]);
+    (list || []).slice().reverse().forEach(it => {
+      data[it.barcode] = data[it.barcode] || { nom: it.nom, qte: 0 };
+      data[it.barcode].qte += it.quantite;
+    });
+    renderSession(mode);
   });
 }
 
@@ -449,9 +492,14 @@ function openCreateModal(barcode){
 function closeModal(){ document.getElementById('modal-bg').classList.remove('show'); pendingBarcode=null; }
 
 document.addEventListener('keydown', (e) => {
-  if(!document.getElementById('modal-bg').classList.contains('show')) return;
-  if(e.key === 'Escape') closeModal();
-  if(e.key === 'Enter' && document.activeElement.tagName === 'INPUT'){ e.preventDefault(); submitCreate(); }
+  const openModal = document.querySelector('.modal-bg.show');
+  if(!openModal) return;
+  if(e.key === 'Escape'){ openModal.id === 'buyer-modal-bg' ? closeBuyerModal() : closeModal(); }
+  if(e.key === 'Enter' && document.activeElement.tagName === 'INPUT'){
+    e.preventDefault();
+    const fn = openModal.dataset.submit;
+    if(fn && typeof window[fn] === 'function') window[fn]();
+  }
 });
 
 function submitCreate(){
@@ -488,6 +536,36 @@ function submitCreate(){
     }
     closeModal();
     loadStock();
+  });
+}
+
+// COORDONNÉES ACHETEUR (persistées côté serveur, réutilisées à chaque commande)
+function openBuyerModal(){
+  callAPI('getBuyerInfo', {}, 'GET').then(info => {
+    info = info || {};
+    document.getElementById('b-nom').value = info.nom || '';
+    document.getElementById('b-adresse').value = info.adresse || '';
+    document.getElementById('b-telephone').value = info.telephone || '';
+    document.getElementById('b-email').value = info.email || '';
+    document.getElementById('buyer-modal-bg').classList.add('show');
+    setTimeout(() => document.getElementById('b-nom').focus(), 50);
+  });
+}
+
+function closeBuyerModal(){ document.getElementById('buyer-modal-bg').classList.remove('show'); }
+
+function saveBuyerInfo(){
+  const btn = document.getElementById('save-buyer-btn');
+  const info = {
+    nom: document.getElementById('b-nom').value.trim(),
+    adresse: document.getElementById('b-adresse').value.trim(),
+    telephone: document.getElementById('b-telephone').value.trim(),
+    email: document.getElementById('b-email').value.trim()
+  };
+  btn.disabled = true;
+  callAPI('setBuyerInfo', { info }).then(res => {
+    btn.disabled = false;
+    if(res.ok){ toast('Coordonnées enregistrées ✓'); closeBuyerModal(); }
   });
 }
 
@@ -576,7 +654,7 @@ function sendOrderNow(){
   callAPI('sendOrder', { items, email }).then(res => {
     btn.disabled = false;
     btn.innerHTML = '📄 Générer PDF et envoyer';
-    if(res.ok){ toast('Commande envoyée avec succès !'); }
+    if(res.ok){ toast('Commande n°'+res.orderNumber+' envoyée ✓'); }
     else { toast('Erreur lors de l\'envoi', true); }
   });
 }
