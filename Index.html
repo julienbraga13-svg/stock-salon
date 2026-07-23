@@ -2,7 +2,9 @@
 <html>
 <head>
 <base target="_top">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Stock Salon</title>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 :root{--bg:#f6f7f8;--card:#fff;--accent:#0f766e;--text:#111827;--muted:#6b7280;--green:#22c55e;--orange:#f59e0b;--red:#ef4444;--border:#e5e7eb}
@@ -151,9 +153,16 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
 </div>
 
 <script>
-// ⚠️ Collez ici l'URL de votre déploiement Google Apps Script
+// ⚠️ INSÉREZ VOTRE URL GOOGLE APPS SCRIPT CI-DESSOUS (remplacez le lien entre les guillemets)
 const API_URL = "https://script.google.com/macros/s/AKfycbz4i0ApoZesOOI3yMVUZz_j2JQ__nI2Qeh1Qa1Mf5W5ri0_Z-Bebf1V5Z3d6ntm0Y16/exec";
 
+let html5QrCode = null;
+let currentScannerTarget = null;
+let lastCode = null, lastTime = 0;
+let scanMode = 'sortie';
+let sessionSortie = {}, sessionReception = {}, stockCache = [], pendingBarcode = null;
+
+// FOCTION D'APPEL APIS DISTANTES
 async function callAPI(action, payload = {}, method = 'POST') {
   try {
     let url = API_URL;
@@ -163,7 +172,6 @@ async function callAPI(action, payload = {}, method = 'POST') {
       url += `?action=${action}&` + new URLSearchParams(payload).toString();
     } else {
       options.body = JSON.stringify({ action, ...payload });
-      // Text/plain pour éviter les blocages CORS pré-vol de certains navigateurs
       options.headers = { 'Content-Type': 'text/plain;charset=utf-8' }; 
     }
 
@@ -171,15 +179,10 @@ async function callAPI(action, payload = {}, method = 'POST') {
     return await response.json();
   } catch (err) {
     console.error("Erreur API:", err);
-    toast("Erreur de connexion au serveur");
+    toast("Erreur de connexion serveur");
     return { ok: false };
   }
-}  
-let html5QrCode = null;
-let currentScannerTarget = null;
-let lastCode = null, lastTime = 0;
-let scanMode = 'sortie';
-let sessionSortie = {}, sessionReception = {}, stockCache = [], pendingBarcode = null;
+}
 
 window.addEventListener('DOMContentLoaded', () => {
   startScanner('reader-sortie');
@@ -200,7 +203,6 @@ function switchTab(tab){
   if(tab==='commande') { loadEmail(); loadSuggestion(); }
 }
 
-// GESTION DU SCANNER EN DIRECT
 function startScanner(targetId){
   if(currentScannerTarget === targetId && html5QrCode && html5QrCode.isScanning) return;
   
@@ -208,11 +210,11 @@ function startScanner(targetId){
     currentScannerTarget = targetId;
     html5QrCode = new Html5Qrcode(targetId);
     
-    // Configuration optimisée pour la caméra arrière
     const config = { 
       fps: 15, 
       qrbox: { width: 250, height: 150 },
-      aspectRatio: 1.0
+      aspectRatio: 1.0,
+      showTorchButtonIfSupported: true
     };
 
     html5QrCode.start(
@@ -238,7 +240,6 @@ function stopScanner(){
 
 function onScanSuccess(decodedText){
   const now = Date.now();
-  // Anti-rebond : évite d'enregistrer 10 fois le même produit en 2 secondes
   if(decodedText === lastCode && (now - lastTime) < 2500) return;
   lastCode = decodedText;
   lastTime = now;
@@ -314,9 +315,9 @@ function beep(){
 
 // GESTION DU STOCK
 function loadStock(){
-  callAPI('getStock', {}, 'GET').then(list => { 
-    stockCache = list || []; 
-    renderStock(); 
+  callAPI('getStock', {}, 'GET').then(list => {
+    stockCache = list || [];
+    renderStock();
   });
 }
 
@@ -373,12 +374,12 @@ function saveEdit(row, barcode){
     seuil: document.getElementById('e-seuil-'+row).value,
     quantite: document.getElementById('e-qte-'+row).value
   };
-  google.script.run.withSuccessHandler(()=>{ toast('Produit mis à jour'); loadStock(); }).updateProduct(p);
+  callAPI('updateProduct', { product: p }).then(() => { toast('Produit mis à jour'); loadStock(); });
 }
 
 function deleteRow(barcode){
   if(!confirm('Supprimer ce produit ?')) return;
-  google.script.run.withSuccessHandler(()=>{ toast('Produit supprimé'); loadStock(); }).deleteProduct(barcode);
+  callAPI('deleteProduct', { barcode }).then(() => { toast('Produit supprimé'); loadStock(); });
 }
 
 // CREATION MODAL
@@ -406,7 +407,7 @@ function submitCreate(){
     quantite: document.getElementById('m-quantite').value
   };
   if(!p.barcode || !p.nom){ toast('Code-barre et nom requis'); return; }
-  google.script.run.withSuccessHandler(res=>{
+  callAPI('createProduct', { product: p }).then(res => {
     if(!res.ok){ toast(res.error||'Erreur'); return; }
     toast('Produit créé');
     if(pendingBarcode){
@@ -415,7 +416,7 @@ function submitCreate(){
     }
     closeModal();
     loadStock();
-  }).createProduct(p);
+  });
 }
 
 // COMMANDES FOURNISSEUR
@@ -433,7 +434,31 @@ function saveEmail(){
 
 function loadSuggestion(){
   callAPI('getOrderSuggestion', {}, 'GET').then(list => {
-    // (votre code d'affichage de la liste de commande...)
+    const el = document.getElementById('order-list');
+    el.innerHTML='';
+    if(!list || list.length === 0){
+      el.innerHTML = '<p style="color:var(--muted);text-align:center;">Aucun produit sous le seuil d\'alerte.</p>';
+      calculateOrderTotal();
+      return;
+    }
+    list.forEach(p=>{
+      const suggestedQty = Math.max(1, (Number(p.seuil)*2) - Number(p.quantite));
+      const line = document.createElement('div');
+      line.className = 'order-line';
+      line.dataset.barcode = p.barcode; 
+      line.dataset.nom = p.nom; 
+      line.dataset.prix = p.prix; 
+      line.dataset.contenance = p.contenance||'';
+      line.innerHTML = `
+        <div class="dot ${pastille(p.quantite,p.seuil)}"></div>
+        <div class="info">
+          <b>${p.nom}</b><br>
+          <span class="psub">Stock: ${p.quantite} / Seuil: ${p.seuil} · ${Number(p.prix||0).toFixed(2)}€</span>
+        </div>
+        <input type="number" class="order-qty" value="${suggestedQty}" min="0" onchange="calculateOrderTotal()">`;
+      el.appendChild(line);
+    });
+    calculateOrderTotal();
   });
 }
 
@@ -448,11 +473,29 @@ function calculateOrderTotal(){
 }
 
 function sendOrderNow(){
-  // ... préparation des items ...
+  const email = document.getElementById('supplier-email').value.trim();
+  if(!email){ toast('Adresse e-mail requise'); return; }
+
+  const items = [];
+  document.querySelectorAll('.order-line').forEach(line=>{
+    const qteCommande = Number(line.querySelector('.order-qty').value) || 0;
+    if(qteCommande > 0){
+      items.push({
+        barcode: line.dataset.barcode,
+        nom: line.dataset.nom,
+        contenance: line.dataset.contenance,
+        prix: Number(line.dataset.prix) || 0,
+        qteCommande: qteCommande
+      });
+    }
+  });
+
+  if(items.length === 0){ toast('Aucun article sélectionné'); return; }
+
   toast('Génération du PDF et envoi...');
   callAPI('sendOrder', { items, email }).then(res => {
-    if(res.ok) toast('Commande envoyée avec succès !');
-    else toast('Erreur lors de l\'envoi');
+    if(res.ok){ toast('Commande envoyée avec succès !'); } 
+    else { toast('Erreur lors de l\'envoi'); }
   });
 }
 </script>
