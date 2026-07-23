@@ -47,11 +47,22 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
 .nav-btn div{font-size:20px}
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60;align-items:flex-end}
 .modal-bg.show{display:flex}
-.modal{background:#fff;width:100%;border-radius:16px 16px 0 0;padding:20px;max-height:85vh;overflow:auto}
-.modal h3{margin-top:0}
-.field{margin-bottom:10px}
+.modal{background:#fff;width:100%;border-radius:16px 16px 0 0;padding:0;max-height:88vh;overflow:auto;animation:slideup .2s ease-out}
+@keyframes slideup{from{transform:translateY(16px);opacity:.6}to{transform:translateY(0);opacity:1}}
+.modal-head{position:sticky;top:0;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;border-bottom:1px solid var(--border);z-index:1}
+.modal-head h3{margin:0;font-size:17px}
+.modal-close{background:#f3f4f6;color:var(--muted);width:30px;height:30px;border-radius:50%;font-size:15px;line-height:1}
+.modal-body{padding:16px 20px 20px}
+.field{margin-bottom:12px}
 .field label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
-.field input{width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:15px}
+.field label .req{color:var(--red)}
+.field input{width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:15px;transition:border-color .15s}
+.field input:focus{outline:none;border-color:var(--accent)}
+.field input.invalid{border-color:var(--red)}
+.field .hint{font-size:11.5px;color:var(--muted);margin-top:4px}
+.field-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.scan-hint{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--accent);background:#f0fdfa;border:1px solid #ccfbf1;border-radius:8px;padding:6px 10px;margin-bottom:14px}
 .row-actions{display:flex;gap:8px;margin-top:14px}
 .order-line{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px}
 .order-line .info{flex:1}
@@ -122,19 +133,33 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
 <div class="toast" id="toast"></div>
 
 <!-- MODAL CREATION PRODUIT -->
-<div class="modal-bg" id="modal-bg">
+<div class="modal-bg" id="modal-bg" onmousedown="if(event.target===this) closeModal()">
   <div class="modal">
-    <h3>Nouveau produit</h3>
-    <div class="field"><label>Code-barre</label><input id="m-barcode"></div>
-    <div class="field"><label>Nom</label><input id="m-nom"></div>
-    <div class="field"><label>Catégorie</label><input id="m-categorie"></div>
-    <div class="field"><label>Contenance</label><input id="m-contenance" placeholder="ex: 250ml"></div>
-    <div class="field"><label>Prix (€)</label><input id="m-prix" type="number" step="0.01"></div>
-    <div class="field"><label>Seuil d'alerte</label><input id="m-seuil" type="number" value="3"></div>
-    <div class="field"><label>Quantité initiale</label><input id="m-quantite" type="number" value="0"></div>
-    <div class="row-actions">
-      <button class="btn secondary" onclick="closeModal()">Annuler</button>
-      <button class="btn" id="submit-create-btn" onclick="submitCreate()">Créer la fiche</button>
+    <div class="modal-head">
+      <h3>Nouveau produit</h3>
+      <button class="modal-close" type="button" onclick="closeModal()" aria-label="Fermer">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="scan-hint" class="scan-hint" style="display:none">📷 Code-barre récupéré automatiquement, complétez la fiche</div>
+      <div class="field"><label>Code-barre <span class="req">*</span></label><input id="m-barcode" placeholder="Scanné ou saisi manuellement"></div>
+      <div class="field"><label>Nom <span class="req">*</span></label><input id="m-nom" placeholder="ex: Shampoing hydratant"></div>
+      <div class="field-grid-2">
+        <div class="field"><label>Catégorie</label><input id="m-categorie" placeholder="ex: Soin"></div>
+        <div class="field"><label>Contenance</label><input id="m-contenance" placeholder="ex: 250ml"></div>
+      </div>
+      <div class="field-grid-3">
+        <div class="field"><label>Prix (€)</label><input id="m-prix" type="number" step="0.01" min="0" placeholder="0.00"></div>
+        <div class="field"><label>Seuil alerte</label><input id="m-seuil" type="number" min="0" value="3"></div>
+        <div class="field"><label>Qté/commande</label><input id="m-qtecommande" type="number" min="1" value="5"></div>
+      </div>
+      <div class="field">
+        <label>Quantité initiale</label><input id="m-quantite" type="number" min="0" value="0">
+        <div class="hint">La quantité "Qté/commande" sera proposée par défaut dans l'onglet Commande quand ce produit passera sous son seuil.</div>
+      </div>
+      <div class="row-actions">
+        <button class="btn secondary" type="button" onclick="closeModal()">Annuler</button>
+        <button class="btn" id="submit-create-btn" onclick="submitCreate()">Créer la fiche</button>
+      </div>
     </div>
   </div>
 </div>
@@ -358,6 +383,7 @@ function renderStock(){
           <div><label>Prix (€)</label><input type="number" step="0.01" id="e-prix-${p.row}" value="${p.prix||0}"></div>
           <div><label>Seuil alerte</label><input type="number" id="e-seuil-${p.row}" value="${p.seuil||3}"></div>
           <div><label>Quantité</label><input type="number" id="e-qte-${p.row}" value="${p.quantite||0}"></div>
+          <div><label>Qté/commande</label><input type="number" id="e-qtecmd-${p.row}" value="${p.qteCommande||5}"></div>
         </div>
         <div class="row-actions" id="actions-${p.row}" style="display:none">
           <button class="btn secondary" onclick="deleteRow('${p.barcode}')">Supprimer</button>
@@ -388,7 +414,8 @@ function saveEdit(row, barcode){
     contenance: document.getElementById('e-cont-'+row).value,
     prix: document.getElementById('e-prix-'+row).value,
     seuil: document.getElementById('e-seuil-'+row).value,
-    quantite: document.getElementById('e-qte-'+row).value
+    quantite: document.getElementById('e-qte-'+row).value,
+    qteCommande: document.getElementById('e-qtecmd-'+row).value
   };
   callAPI('updateProduct', { product: p }).then(res => {
     if(res.ok){ toast('Produit mis à jour'); loadStock(); }
@@ -410,29 +437,52 @@ function openCreateModal(barcode){
   document.getElementById('m-contenance').value='';
   document.getElementById('m-prix').value='';
   document.getElementById('m-seuil').value=3;
+  document.getElementById('m-qtecommande').value=5;
   document.getElementById('m-quantite').value = barcode ? 1 : 0;
+  document.getElementById('scan-hint').style.display = barcode ? 'flex' : 'none';
+  ['m-barcode','m-nom','m-categorie','m-contenance','m-prix','m-seuil','m-qtecommande','m-quantite']
+    .forEach(id => document.getElementById(id).classList.remove('invalid'));
   document.getElementById('modal-bg').classList.add('show');
+  // focus intelligent : le nom si le code-barre est déjà connu (scan), sinon le code-barre
+  setTimeout(() => document.getElementById(barcode ? 'm-nom' : 'm-barcode').focus(), 50);
 }
 
 function closeModal(){ document.getElementById('modal-bg').classList.remove('show'); pendingBarcode=null; }
 
+document.addEventListener('keydown', (e) => {
+  if(!document.getElementById('modal-bg').classList.contains('show')) return;
+  if(e.key === 'Escape') closeModal();
+  if(e.key === 'Enter' && document.activeElement.tagName === 'INPUT'){ e.preventDefault(); submitCreate(); }
+});
+
 function submitCreate(){
   const btn = document.getElementById('submit-create-btn');
+  const barcodeEl = document.getElementById('m-barcode');
+  const nomEl = document.getElementById('m-nom');
+  barcodeEl.classList.toggle('invalid', !barcodeEl.value.trim());
+  nomEl.classList.toggle('invalid', !nomEl.value.trim());
+  if(!barcodeEl.value.trim() || !nomEl.value.trim()){
+    toast('Code-barre et nom requis', true);
+    (!barcodeEl.value.trim() ? barcodeEl : nomEl).focus();
+    return;
+  }
   const p = {
-    barcode: document.getElementById('m-barcode').value.trim(),
-    nom: document.getElementById('m-nom').value.trim(),
+    barcode: barcodeEl.value.trim(),
+    nom: nomEl.value.trim(),
     categorie: document.getElementById('m-categorie').value.trim(),
     contenance: document.getElementById('m-contenance').value.trim(),
     prix: document.getElementById('m-prix').value,
     seuil: document.getElementById('m-seuil').value,
+    qteCommande: document.getElementById('m-qtecommande').value,
     quantite: document.getElementById('m-quantite').value
   };
-  if(!p.barcode || !p.nom){ toast('Code-barre et nom requis', true); return; }
   btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Création...';
   callAPI('createProduct', { product: p }).then(res => {
     btn.disabled = false;
+    btn.innerHTML = 'Créer la fiche';
     if(!res.ok){ toast(res.error||'Erreur', true); return; }
-    toast('Produit créé');
+    toast('Produit créé ✓');
     if(pendingBarcode){
       sessionReception[pendingBarcode] = {nom:p.nom, qte:Number(p.quantite)||1};
       renderSession('reception');
@@ -466,7 +516,9 @@ function loadSuggestion(){
       return;
     }
     list.forEach(p=>{
-      const suggestedQty = Math.max(1, (Number(p.seuil)*2) - Number(p.quantite));
+      const suggestedQty = Number(p.qteCommande) > 0
+        ? Number(p.qteCommande)
+        : Math.max(1, (Number(p.seuil)*2) - Number(p.quantite));
       const line = document.createElement('div');
       line.className = 'order-line';
       line.dataset.barcode = p.barcode;
