@@ -13,10 +13,9 @@ body{margin:0;font-family:-apple-system,system-ui,Roboto,sans-serif;background:v
 header{background:var(--card);padding:14px 16px;font-weight:700;font-size:18px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
 .tab{display:none;padding:14px}
 .tab.active{display:block}
-.scanner-box{background:#000;border-radius:16px;overflow:hidden;position:relative;min-height:220px;margin-bottom:14px}
+.scanner-box{background:#000;border-radius:16px;overflow:hidden;position:relative;min-height:220px;margin-bottom:14px;cursor:pointer}
 #reader-sortie, #reader-reception{width:100%}
 #reader-sortie video, #reader-reception video{object-fit:cover!important;border-radius:16px}
-.btn-cam{background:var(--accent);color:#fff;width:100%;padding:12px;border-radius:10px;font-size:15px;margin-bottom:12px}
 .manual{display:flex;gap:8px;margin-bottom:14px}
 .manual input{flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);font-size:15px}
 button{cursor:pointer;border:none;font-weight:600;font-family:inherit}
@@ -42,9 +41,11 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .searchbar{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);margin-bottom:12px;font-size:15px}
 .fab{position:fixed;right:16px;bottom:calc(80px + env(safe-area-inset-bottom));background:var(--accent);color:#fff;width:52px;height:52px;border-radius:50%;font-size:26px;box-shadow:0 4px 10px rgba(0,0,0,.2);z-index:10}
 nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:20}
-.nav-btn{flex:1;background:none;padding:10px 0;text-align:center;color:var(--muted);font-size:12px}
-.nav-btn.active{color:var(--accent)}
-.nav-btn div{font-size:20px}
+.nav-btn{flex:1;background:none;padding:10px 0 8px;text-align:center;color:var(--muted);font-size:12px;position:relative;transition:color .15s,background .15s}
+.nav-btn.active{color:var(--accent);font-weight:700;background:#f0fdfa}
+.nav-btn.active::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:32px;height:3px;border-radius:0 0 4px 4px;background:var(--accent)}
+.nav-btn div{font-size:20px;transition:transform .15s}
+.nav-btn.active div{transform:scale(1.1)}
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60;align-items:flex-end}
 .modal-bg.show{display:flex}
 .modal{background:#fff;width:100%;border-radius:16px 16px 0 0;padding:0;max-height:88vh;overflow:auto;animation:slideup .2s ease-out}
@@ -80,8 +81,7 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
 
 <!-- ONGLET SORTIE -->
 <div class="tab active" id="tab-sortie">
-  <div class="scanner-box"><div id="reader-sortie"></div></div>
-  <button class="btn-cam" onclick="startScanner('reader-sortie')">🎥 Activer / Relancer la caméra</button>
+  <div class="scanner-box" onclick="startScanner('reader-sortie')" title="Toucher pour relancer la caméra"><div id="reader-sortie"></div></div>
   <div class="manual">
     <input id="manual-sortie" placeholder="Code-barre manuel" inputmode="numeric">
     <button class="btn" onclick="manualSubmit('sortie')">Valider</button>
@@ -113,8 +113,7 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
 
 <!-- ONGLET RECEPTION -->
 <div class="tab" id="tab-reception">
-  <div class="scanner-box"><div id="reader-reception"></div></div>
-  <button class="btn-cam" onclick="startScanner('reader-reception')">🎥 Activer / Relancer la caméra</button>
+  <div class="scanner-box" onclick="startScanner('reader-reception')" title="Toucher pour relancer la caméra"><div id="reader-reception"></div></div>
   <div class="manual">
     <input id="manual-reception" placeholder="Code-barre manuel" inputmode="numeric">
     <button class="btn" onclick="manualSubmit('reception')">Valider</button>
