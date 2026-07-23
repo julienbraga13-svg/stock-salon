@@ -13,32 +13,14 @@ body{margin:0;font-family:-apple-system,system-ui,Roboto,sans-serif;background:v
 header{background:var(--card);padding:14px 16px;font-weight:700;font-size:18px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
 .tab{display:none;padding:14px}
 .tab.active{display:block}
-
-/* Scanner vidéo direct */
-.scanner-box{
-  background:#000;
-  border-radius:16px;
-  overflow:hidden;
-  position:relative;
-  min-height:220px;
-  margin-bottom:14px;
-}
+.scanner-box{background:#000;border-radius:16px;overflow:hidden;position:relative;min-height:220px;margin-bottom:14px}
 #reader-sortie, #reader-reception{width:100%}
 #reader-sortie video, #reader-reception video{object-fit:cover!important;border-radius:16px}
-
-.btn-cam{
-  background:var(--accent);
-  color:#fff;
-  width:100%;
-  padding:12px;
-  border-radius:10px;
-  font-size:15px;
-  margin-bottom:12px;
-}
-
+.btn-cam{background:var(--accent);color:#fff;width:100%;padding:12px;border-radius:10px;font-size:15px;margin-bottom:12px}
 .manual{display:flex;gap:8px;margin-bottom:14px}
 .manual input{flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);font-size:15px}
 button{cursor:pointer;border:none;font-weight:600;font-family:inherit}
+button:disabled{opacity:.5;cursor:not-allowed}
 .btn{background:var(--accent);color:#fff;padding:12px 16px;border-radius:10px;font-size:15px}
 .btn.secondary{background:#e5e7eb;color:var(--text)}
 .session{background:var(--card);border-radius:12px;border:1px solid var(--border)}
@@ -47,6 +29,7 @@ button{cursor:pointer;border:none;font-weight:600;font-family:inherit}
 .qte-badge{background:var(--accent);color:#fff;border-radius:20px;padding:2px 10px;font-size:13px}
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;transition:.25s;z-index:50;max-width:90%;text-align:center}
 .toast.show{opacity:1}
+.toast.error{background:var(--red)}
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px}
 .card-top{display:flex;align-items:center;gap:10px;justify-content:space-between;cursor:pointer}
 .dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
@@ -74,6 +57,10 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
 .order-line .info{flex:1}
 .order-line input{width:65px;padding:6px;border-radius:6px;border:1px solid var(--border);text-align:center;font-size:14px}
 .total{font-weight:700;font-size:16px;margin:14px 0}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.skeleton{background:linear-gradient(90deg,#eee 25%,#f5f5f5 50%,#eee 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:8px;height:56px;margin-bottom:10px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 </style>
 </head>
 <body>
@@ -100,7 +87,7 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
 
 <!-- ONGLET COMMANDES -->
 <div class="tab" id="tab-commande">
-  <button class="btn secondary" onclick="loadSuggestion()">🔄 Actualiser la suggestion</button>
+  <button class="btn secondary" id="refresh-suggestion" onclick="loadSuggestion()">🔄 Actualiser la suggestion</button>
   <div id="order-list" style="margin-top:14px"></div>
   <div class="total" id="order-total">Total : 0.00 €</div>
   <div class="field">
@@ -109,7 +96,7 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
   </div>
   <div class="row-actions">
     <button class="btn secondary" onclick="saveEmail()">Enregistrer l'adresse</button>
-    <button class="btn" onclick="sendOrderNow()">📄 Générer PDF et envoyer</button>
+    <button class="btn" id="send-order-btn" onclick="sendOrderNow()">📄 Générer PDF et envoyer</button>
   </div>
 </div>
 
@@ -147,7 +134,7 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
     <div class="field"><label>Quantité initiale</label><input id="m-quantite" type="number" value="0"></div>
     <div class="row-actions">
       <button class="btn secondary" onclick="closeModal()">Annuler</button>
-      <button class="btn" onclick="submitCreate()">Créer la fiche</button>
+      <button class="btn" id="submit-create-btn" onclick="submitCreate()">Créer la fiche</button>
     </div>
   </div>
 </div>
@@ -161,25 +148,33 @@ let currentScannerTarget = null;
 let lastCode = null, lastTime = 0;
 let scanMode = 'sortie';
 let sessionSortie = {}, sessionReception = {}, stockCache = [], pendingBarcode = null;
+let scanLock = false; // évite les doubles envois pendant l'appel réseau
 
-// FOCTION D'APPEL APIS DISTANTES
+// APPEL API DISTANT (Google Apps Script)
 async function callAPI(action, payload = {}, method = 'POST') {
   try {
     let url = API_URL;
-    let options = { method: method };
+    let options = { method };
 
     if (method === 'GET') {
-      url += `?action=${action}&` + new URLSearchParams(payload).toString();
+      url += `?action=${encodeURIComponent(action)}&` + new URLSearchParams(payload).toString();
     } else {
       options.body = JSON.stringify({ action, ...payload });
-      options.headers = { 'Content-Type': 'text/plain;charset=utf-8' }; 
+      // text/plain évite le pre-flight CORS avec Apps Script
+      options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
     }
 
-    const response = await fetch(url);
-    return await response.json();
+    // BUG CORRIGÉ : il manquait "options" ici, donc TOUTES les requêtes
+    // POST (sortie, réception, création/édition/suppression produit,
+    // commande) étaient envoyées en GET et ignorées par le serveur.
+    const response = await fetch(url, options);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data = await response.json();
+    if (data && data.ok === false && data.error) toast(data.error, true);
+    return data;
   } catch (err) {
     console.error("Erreur API:", err);
-    toast("Erreur de connexion serveur");
+    toast("Erreur de connexion serveur", true);
     return { ok: false };
   }
 }
@@ -205,25 +200,25 @@ function switchTab(tab){
 
 function startScanner(targetId){
   if(currentScannerTarget === targetId && html5QrCode && html5QrCode.isScanning) return;
-  
+
   stopScanner().then(() => {
     currentScannerTarget = targetId;
     html5QrCode = new Html5Qrcode(targetId);
-    
-    const config = { 
-      fps: 15, 
+
+    const config = {
+      fps: 15,
       qrbox: { width: 250, height: 150 },
       aspectRatio: 1.0,
       showTorchButtonIfSupported: true
     };
 
     html5QrCode.start(
-      { facingMode: "environment" }, 
-      config, 
+      { facingMode: "environment" },
+      config,
       onScanSuccess
     ).catch(err => {
       console.error("Erreur d'accès à la caméra:", err);
-      toast("Caméra bloquée. Autorisez la caméra dans le navigateur.");
+      toast("Caméra bloquée. Autorisez la caméra dans le navigateur.", true);
     });
   });
 }
@@ -243,7 +238,7 @@ function onScanSuccess(decodedText){
   if(decodedText === lastCode && (now - lastTime) < 2500) return;
   lastCode = decodedText;
   lastTime = now;
-  
+
   handleBarcode(decodedText);
 }
 
@@ -257,6 +252,7 @@ function manualSubmit(mode){
 }
 
 function handleBarcode(code){
+  if(scanLock) return; // évite un double-scan pendant que la requête précédente est en cours
   if(navigator.vibrate) navigator.vibrate(70);
   beep();
   if(scanMode === 'sortie') processSortie(code);
@@ -264,8 +260,10 @@ function handleBarcode(code){
 }
 
 function processSortie(code){
+  scanLock = true;
   callAPI('changeStock', { barcode: code, delta: -1 }).then(res => {
-    if(!res.ok){ toast('Produit inconnu: '+code); return; }
+    scanLock = false;
+    if(!res.ok){ toast('Produit inconnu: '+code, true); return; }
     const p = res.product;
     sessionSortie[code] = sessionSortie[code] || {nom:p.nom, qte:0};
     sessionSortie[code].qte++;
@@ -275,7 +273,9 @@ function processSortie(code){
 }
 
 function processReception(code){
+  scanLock = true;
   callAPI('changeStock', { barcode: code, delta: 1 }).then(res => {
+    scanLock = false;
     if(!res.ok){ pendingBarcode=code; openCreateModal(code); return; }
     const p = res.product;
     sessionReception[code] = sessionReception[code] || {nom:p.nom, qte:0};
@@ -291,14 +291,18 @@ function renderSession(mode){
   ul.innerHTML='';
   Object.values(data).reverse().forEach(it=>{
     const li = document.createElement('li');
-    li.innerHTML = `<span>${it.nom}</span><span class="qte-badge">x${it.qte}</span>`;
+    li.innerHTML = `<span></span><span class="qte-badge"></span>`;
+    li.children[0].textContent = it.nom;
+    li.children[1].textContent = 'x'+it.qte;
     ul.appendChild(li);
   });
 }
 
-function toast(msg){
+function toast(msg, isError){
   const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
+  t.textContent = msg;
+  t.classList.toggle('error', !!isError);
+  t.classList.add('show');
   clearTimeout(window._toastTimer);
   window._toastTimer = setTimeout(()=>t.classList.remove('show'),2200);
 }
@@ -315,6 +319,8 @@ function beep(){
 
 // GESTION DU STOCK
 function loadStock(){
+  const el = document.getElementById('stock-list');
+  el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
   callAPI('getStock', {}, 'GET').then(list => {
     stockCache = list || [];
     renderStock();
@@ -327,8 +333,12 @@ function renderStock(){
   const q = (document.getElementById('search').value||'').toLowerCase();
   const el = document.getElementById('stock-list');
   el.innerHTML='';
-  stockCache.filter(p=>(p.nom||'').toLowerCase().includes(q) || String(p.barcode).includes(q))
-    .forEach(p=>{
+  const filtered = stockCache.filter(p=>(p.nom||'').toLowerCase().includes(q) || String(p.barcode).includes(q));
+  if(filtered.length===0){
+    el.innerHTML = '<p style="color:var(--muted);text-align:center;">Aucun produit.</p>';
+    return;
+  }
+  filtered.forEach(p=>{
       const card = document.createElement('div');
       card.className = 'card';
       card.innerHTML = `
@@ -336,15 +346,15 @@ function renderStock(){
           <div style="display:flex;gap:10px;align-items:center">
             <div class="dot ${pastille(p.quantite,p.seuil)}"></div>
             <div>
-              <div class="pname">${p.nom}</div>
-              <div class="psub">${p.contenance||''} · ${Number(p.prix||0).toFixed(2)}€ · Qté: ${p.quantite}</div>
+              <div class="pname"></div>
+              <div class="psub"></div>
             </div>
           </div>
         </div>
         <div class="edit-grid" id="edit-${p.row}" style="display:none">
-          <div><label>Nom</label><input id="e-nom-${p.row}" value="${p.nom||''}"></div>
-          <div><label>Catégorie</label><input id="e-cat-${p.row}" value="${p.categorie||''}"></div>
-          <div><label>Contenance</label><input id="e-cont-${p.row}" value="${p.contenance||''}"></div>
+          <div><label>Nom</label><input id="e-nom-${p.row}" value="${escapeAttr(p.nom)}"></div>
+          <div><label>Catégorie</label><input id="e-cat-${p.row}" value="${escapeAttr(p.categorie)}"></div>
+          <div><label>Contenance</label><input id="e-cont-${p.row}" value="${escapeAttr(p.contenance)}"></div>
           <div><label>Prix (€)</label><input type="number" step="0.01" id="e-prix-${p.row}" value="${p.prix||0}"></div>
           <div><label>Seuil alerte</label><input type="number" id="e-seuil-${p.row}" value="${p.seuil||3}"></div>
           <div><label>Quantité</label><input type="number" id="e-qte-${p.row}" value="${p.quantite||0}"></div>
@@ -353,8 +363,14 @@ function renderStock(){
           <button class="btn secondary" onclick="deleteRow('${p.barcode}')">Supprimer</button>
           <button class="btn" onclick="saveEdit(${p.row},'${p.barcode}')">Enregistrer</button>
         </div>`;
+      card.querySelector('.pname').textContent = p.nom;
+      card.querySelector('.psub').textContent = `${p.contenance||''} · ${Number(p.prix||0).toFixed(2)}€ · Qté: ${p.quantite}`;
       el.appendChild(card);
-    });
+  });
+}
+
+function escapeAttr(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 }
 
 function toggleEdit(row){
@@ -374,12 +390,16 @@ function saveEdit(row, barcode){
     seuil: document.getElementById('e-seuil-'+row).value,
     quantite: document.getElementById('e-qte-'+row).value
   };
-  callAPI('updateProduct', { product: p }).then(() => { toast('Produit mis à jour'); loadStock(); });
+  callAPI('updateProduct', { product: p }).then(res => {
+    if(res.ok){ toast('Produit mis à jour'); loadStock(); }
+  });
 }
 
 function deleteRow(barcode){
   if(!confirm('Supprimer ce produit ?')) return;
-  callAPI('deleteProduct', { barcode }).then(() => { toast('Produit supprimé'); loadStock(); });
+  callAPI('deleteProduct', { barcode }).then(res => {
+    if(res.ok){ toast('Produit supprimé'); loadStock(); }
+  });
 }
 
 // CREATION MODAL
@@ -397,6 +417,7 @@ function openCreateModal(barcode){
 function closeModal(){ document.getElementById('modal-bg').classList.remove('show'); pendingBarcode=null; }
 
 function submitCreate(){
+  const btn = document.getElementById('submit-create-btn');
   const p = {
     barcode: document.getElementById('m-barcode').value.trim(),
     nom: document.getElementById('m-nom').value.trim(),
@@ -406,9 +427,11 @@ function submitCreate(){
     seuil: document.getElementById('m-seuil').value,
     quantite: document.getElementById('m-quantite').value
   };
-  if(!p.barcode || !p.nom){ toast('Code-barre et nom requis'); return; }
+  if(!p.barcode || !p.nom){ toast('Code-barre et nom requis', true); return; }
+  btn.disabled = true;
   callAPI('createProduct', { product: p }).then(res => {
-    if(!res.ok){ toast(res.error||'Erreur'); return; }
+    btn.disabled = false;
+    if(!res.ok){ toast(res.error||'Erreur', true); return; }
     toast('Produit créé');
     if(pendingBarcode){
       sessionReception[pendingBarcode] = {nom:p.nom, qte:Number(p.quantite)||1};
@@ -428,13 +451,14 @@ function loadEmail(){
 
 function saveEmail(){
   const email = document.getElementById('supplier-email').value.trim();
-  if(!email){ toast('Adresse email invalide'); return; }
-  callAPI('setSupplierEmail', { email }).then(() => { toast('E-mail enregistré'); });
+  if(!email){ toast('Adresse email invalide', true); return; }
+  callAPI('setSupplierEmail', { email }).then(res => { if(res.ok) toast("E-mail enregistré"); });
 }
 
 function loadSuggestion(){
+  const el = document.getElementById('order-list');
+  el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
   callAPI('getOrderSuggestion', {}, 'GET').then(list => {
-    const el = document.getElementById('order-list');
     el.innerHTML='';
     if(!list || list.length === 0){
       el.innerHTML = '<p style="color:var(--muted);text-align:center;">Aucun produit sous le seuil d\'alerte.</p>';
@@ -445,17 +469,19 @@ function loadSuggestion(){
       const suggestedQty = Math.max(1, (Number(p.seuil)*2) - Number(p.quantite));
       const line = document.createElement('div');
       line.className = 'order-line';
-      line.dataset.barcode = p.barcode; 
-      line.dataset.nom = p.nom; 
-      line.dataset.prix = p.prix; 
+      line.dataset.barcode = p.barcode;
+      line.dataset.nom = p.nom;
+      line.dataset.prix = p.prix;
       line.dataset.contenance = p.contenance||'';
       line.innerHTML = `
         <div class="dot ${pastille(p.quantite,p.seuil)}"></div>
         <div class="info">
-          <b>${p.nom}</b><br>
-          <span class="psub">Stock: ${p.quantite} / Seuil: ${p.seuil} · ${Number(p.prix||0).toFixed(2)}€</span>
+          <b class="lnom"></b><br>
+          <span class="psub lsub"></span>
         </div>
         <input type="number" class="order-qty" value="${suggestedQty}" min="0" onchange="calculateOrderTotal()">`;
+      line.querySelector('.lnom').textContent = p.nom;
+      line.querySelector('.lsub').textContent = `Stock: ${p.quantite} / Seuil: ${p.seuil} · ${Number(p.prix||0).toFixed(2)}€`;
       el.appendChild(line);
     });
     calculateOrderTotal();
@@ -474,7 +500,7 @@ function calculateOrderTotal(){
 
 function sendOrderNow(){
   const email = document.getElementById('supplier-email').value.trim();
-  if(!email){ toast('Adresse e-mail requise'); return; }
+  if(!email){ toast('Adresse e-mail requise', true); return; }
 
   const items = [];
   document.querySelectorAll('.order-line').forEach(line=>{
@@ -490,12 +516,17 @@ function sendOrderNow(){
     }
   });
 
-  if(items.length === 0){ toast('Aucun article sélectionné'); return; }
+  if(items.length === 0){ toast('Aucun article sélectionné', true); return; }
 
+  const btn = document.getElementById('send-order-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Envoi...';
   toast('Génération du PDF et envoi...');
   callAPI('sendOrder', { items, email }).then(res => {
-    if(res.ok){ toast('Commande envoyée avec succès !'); } 
-    else { toast('Erreur lors de l\'envoi'); }
+    btn.disabled = false;
+    btn.innerHTML = '📄 Générer PDF et envoyer';
+    if(res.ok){ toast('Commande envoyée avec succès !'); }
+    else { toast('Erreur lors de l\'envoi', true); }
   });
 }
 </script>
