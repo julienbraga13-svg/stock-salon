@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+:root{--bg:#f6f7f8;--card:#fff;--accent:#0f766e;--text:#111827;--muted:#6b7280;--green:#22c55e;--orange:#f59e0b;--red:#ef4444;--border:#e5e7eb}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,system-ui,Roboto,sans-serif;background:var(--bg);color:var(--text);padding-bottom:calc(70px + env(safe-area-inset-bottom))}
+header{background:var(--card);padding:14px 16px;font-weight:700;font-size:18px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
+.tab{display:none;padding:14px}
+.tab.active{display:block}
+
+/* Scanner vidéo direct */
+.scanner-box{
+  background:#000;
+  border-radius:16px;
+  overflow:hidden;
+  position:relative;
+  min-height:220px;
+  margin-bottom:14px;
+}
+#reader-sortie, #reader-reception{width:100%}
+#reader-sortie video, #reader-reception video{object-fit:cover!important;border-radius:16px}
+
+.btn-cam{
+  background:var(--accent);
+  color:#fff;
+  width:100%;
+  padding:12px;
+  border-radius:10px;
+  font-size:15px;
+  margin-bottom:12px;
+}
+
+.manual{display:flex;gap:8px;margin-bottom:14px}
+.manual input{flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);font-size:15px}
+button{cursor:pointer;border:none;font-weight:600;font-family:inherit}
+.btn{background:var(--accent);color:#fff;padding:12px 16px;border-radius:10px;font-size:15px}
+.btn.secondary{background:#e5e7eb;color:var(--text)}
+.session{background:var(--card);border-radius:12px;border:1px solid var(--border)}
+.session li{list-style:none;display:flex;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border)}
+.session li:last-child{border:none}
+.qte-badge{background:var(--accent);color:#fff;border-radius:20px;padding:2px 10px;font-size:13px}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;transition:.25s;z-index:50;max-width:90%;text-align:center}
+.toast.show{opacity:1}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.card-top{display:flex;align-items:center;gap:10px;justify-content:space-between;cursor:pointer}
+.dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.dot.green{background:var(--green)} .dot.orange{background:var(--orange)} .dot.red{background:var(--red)}
+.pname{font-weight:600;font-size:15px}
+.psub{color:var(--muted);font-size:13px}
+.edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.edit-grid label{font-size:12px;color:var(--muted);display:block;margin-bottom:3px}
+.edit-grid input{width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:14px}
+.searchbar{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);margin-bottom:12px;font-size:15px}
+.fab{position:fixed;right:16px;bottom:calc(80px + env(safe-area-inset-bottom));background:var(--accent);color:#fff;width:52px;height:52px;border-radius:50%;font-size:26px;box-shadow:0 4px 10px rgba(0,0,0,.2);z-index:10}
+nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:20}
+.nav-btn{flex:1;background:none;padding:10px 0;text-align:center;color:var(--muted);font-size:12px}
+.nav-btn.active{color:var(--accent)}
+.nav-btn div{font-size:20px}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60;align-items:flex-end}
+.modal-bg.show{display:flex}
+.modal{background:#fff;width:100%;border-radius:16px 16px 0 0;padding:20px;max-height:85vh;overflow:auto}
+.modal h3{margin-top:0}
+.field{margin-bottom:10px}
+.field label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
+.field input{width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:15px}
+.row-actions{display:flex;gap:8px;margin-top:14px}
+.order-line{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px}
+.order-line .info{flex:1}
+.order-line input{width:65px;padding:6px;border-radius:6px;border:1px solid var(--border);text-align:center;font-size:14px}
+.total{font-weight:700;font-size:16px;margin:14px 0}
+</style>
+</head>
+<body>
+
+<header>💈 Stock Salon</header>
+
+<!-- ONGLET SORTIE -->
+<div class="tab active" id="tab-sortie">
+  <div class="scanner-box"><div id="reader-sortie"></div></div>
+  <button class="btn-cam" onclick="startScanner('reader-sortie')">🎥 Activer / Relancer la caméra</button>
+  <div class="manual">
+    <input id="manual-sortie" placeholder="Code-barre manuel" inputmode="numeric">
+    <button class="btn" onclick="manualSubmit('sortie')">Valider</button>
+  </div>
+  <div class="session"><ul id="list-sortie"></ul></div>
+</div>
+
+<!-- ONGLET STOCK -->
+<div class="tab" id="tab-stock">
+  <input class="searchbar" id="search" placeholder="Rechercher un produit..." oninput="renderStock()">
+  <div id="stock-list"></div>
+  <button class="fab" onclick="openCreateModal(null)">+</button>
+</div>
+
+<!-- ONGLET COMMANDES -->
+<div class="tab" id="tab-commande">
+  <button class="btn secondary" onclick="loadSuggestion()">🔄 Actualiser la suggestion</button>
+  <div id="order-list" style="margin-top:14px"></div>
+  <div class="total" id="order-total">Total : 0.00 €</div>
+  <div class="field">
+    <label>Adresse e-mail fournisseur</label>
+    <input id="supplier-email" type="email">
+  </div>
+  <div class="row-actions">
+    <button class="btn secondary" onclick="saveEmail()">Enregistrer l'adresse</button>
+    <button class="btn" onclick="sendOrderNow()">📄 Générer PDF et envoyer</button>
+  </div>
+</div>
+
+<!-- ONGLET RECEPTION -->
+<div class="tab" id="tab-reception">
+  <div class="scanner-box"><div id="reader-reception"></div></div>
+  <button class="btn-cam" onclick="startScanner('reader-reception')">🎥 Activer / Relancer la caméra</button>
+  <div class="manual">
+    <input id="manual-reception" placeholder="Code-barre manuel" inputmode="numeric">
+    <button class="btn" onclick="manualSubmit('reception')">Valider</button>
+  </div>
+  <div class="session"><ul id="list-reception"></ul></div>
+</div>
+
+<!-- NAVIGATION -->
+<nav>
+  <button class="nav-btn active" id="nav-sortie" onclick="switchTab('sortie')"><div>📤</div>Sortie</button>
+  <button class="nav-btn" id="nav-stock" onclick="switchTab('stock')"><div>📦</div>Stock</button>
+  <button class="nav-btn" id="nav-commande" onclick="switchTab('commande')"><div>🧾</div>Commande</button>
+  <button class="nav-btn" id="nav-reception" onclick="switchTab('reception')"><div>📥</div>Réception</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<!-- MODAL CREATION PRODUIT -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3>Nouveau produit</h3>
+    <div class="field"><label>Code-barre</label><input id="m-barcode"></div>
+    <div class="field"><label>Nom</label><input id="m-nom"></div>
+    <div class="field"><label>Catégorie</label><input id="m-categorie"></div>
+    <div class="field"><label>Contenance</label><input id="m-contenance" placeholder="ex: 250ml"></div>
+    <div class="field"><label>Prix (€)</label><input id="m-prix" type="number" step="0.01"></div>
+    <div class="field"><label>Seuil d'alerte</label><input id="m-seuil" type="number" value="3"></div>
+    <div class="field"><label>Quantité initiale</label><input id="m-quantite" type="number" value="0"></div>
+    <div class="row-actions">
+      <button class="btn secondary" onclick="closeModal()">Annuler</button>
+      <button class="btn" onclick="submitCreate()">Créer la fiche</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ⚠️ Collez ici l'URL de votre déploiement Google Apps Script
+const API_URL = "https://script.google.com/macros/s/AKfycbz4i0ApoZesOOI3yMVUZz_j2JQ__nI2Qeh1Qa1Mf5W5ri0_Z-Bebf1V5Z3d6ntm0Y16/exec";
+
+async function callAPI(action, payload = {}, method = 'POST') {
+  try {
+    let url = API_URL;
+    let options = { method: method };
+
+    if (method === 'GET') {
+      url += `?action=${action}&` + new URLSearchParams(payload).toString();
+    } else {
+      options.body = JSON.stringify({ action, ...payload });
+      // Text/plain pour éviter les blocages CORS pré-vol de certains navigateurs
+      options.headers = { 'Content-Type': 'text/plain;charset=utf-8' }; 
+    }
+
+    const response = await fetch(url);
+    return await response.json();
+  } catch (err) {
+    console.error("Erreur API:", err);
+    toast("Erreur de connexion au serveur");
+    return { ok: false };
+  }
+}  
+let html5QrCode = null;
+let currentScannerTarget = null;
+let lastCode = null, lastTime = 0;
+let scanMode = 'sortie';
+let sessionSortie = {}, sessionReception = {}, stockCache = [], pendingBarcode = null;
+
+window.addEventListener('DOMContentLoaded', () => {
+  startScanner('reader-sortie');
+});
+
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.getElementById('nav-'+tab).classList.add('active');
+  scanMode = tab;
+
+  if(tab==='sortie') startScanner('reader-sortie');
+  else if(tab==='reception') startScanner('reader-reception');
+  else stopScanner();
+
+  if(tab==='stock') loadStock();
+  if(tab==='commande') { loadEmail(); loadSuggestion(); }
+}
+
+// GESTION DU SCANNER EN DIRECT
+function startScanner(targetId){
+  if(currentScannerTarget === targetId && html5QrCode && html5QrCode.isScanning) return;
+  
+  stopScanner().then(() => {
+    currentScannerTarget = targetId;
+    html5QrCode = new Html5Qrcode(targetId);
+    
+    // Configuration optimisée pour la caméra arrière
+    const config = { 
+      fps: 15, 
+      qrbox: { width: 250, height: 150 },
+      aspectRatio: 1.0
+    };
+
+    html5QrCode.start(
+      { facingMode: "environment" }, 
+      config, 
+      onScanSuccess
+    ).catch(err => {
+      console.error("Erreur d'accès à la caméra:", err);
+      toast("Caméra bloquée. Autorisez la caméra dans le navigateur.");
+    });
+  });
+}
+
+function stopScanner(){
+  if(html5QrCode && html5QrCode.isScanning){
+    return html5QrCode.stop().then(() => {
+      html5QrCode.clear();
+      currentScannerTarget = null;
+    }).catch(err => console.error(err));
+  }
+  return Promise.resolve();
+}
+
+function onScanSuccess(decodedText){
+  const now = Date.now();
+  // Anti-rebond : évite d'enregistrer 10 fois le même produit en 2 secondes
+  if(decodedText === lastCode && (now - lastTime) < 2500) return;
+  lastCode = decodedText;
+  lastTime = now;
+  
+  handleBarcode(decodedText);
+}
+
+function manualSubmit(mode){
+  const input = document.getElementById('manual-'+mode);
+  const code = input.value.trim();
+  if(!code) return;
+  input.value = '';
+  scanMode = mode;
+  handleBarcode(code);
+}
+
+function handleBarcode(code){
+  if(navigator.vibrate) navigator.vibrate(70);
+  beep();
+  if(scanMode === 'sortie') processSortie(code);
+  else if(scanMode === 'reception') processReception(code);
+}
+
+function processSortie(code){
+  callAPI('changeStock', { barcode: code, delta: -1 }).then(res => {
+    if(!res.ok){ toast('Produit inconnu: '+code); return; }
+    const p = res.product;
+    sessionSortie[code] = sessionSortie[code] || {nom:p.nom, qte:0};
+    sessionSortie[code].qte++;
+    renderSession('sortie');
+    toast(p.nom+' — sortie enregistrée');
+  });
+}
+
+function processReception(code){
+  callAPI('changeStock', { barcode: code, delta: 1 }).then(res => {
+    if(!res.ok){ pendingBarcode=code; openCreateModal(code); return; }
+    const p = res.product;
+    sessionReception[code] = sessionReception[code] || {nom:p.nom, qte:0};
+    sessionReception[code].qte++;
+    renderSession('reception');
+    toast(p.nom+' — entrée enregistrée');
+  });
+}
+
+function renderSession(mode){
+  const data = mode==='sortie'?sessionSortie:sessionReception;
+  const ul = document.getElementById('list-'+mode);
+  ul.innerHTML='';
+  Object.values(data).reverse().forEach(it=>{
+    const li = document.createElement('li');
+    li.innerHTML = `<span>${it.nom}</span><span class="qte-badge">x${it.qte}</span>`;
+    ul.appendChild(li);
+  });
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+function beep(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.15, ctx.currentTime);
+    o.start(); o.stop(ctx.currentTime+0.08);
+  }catch(e){}
+}
+
+// GESTION DU STOCK
+function loadStock(){
+  callAPI('getStock', {}, 'GET').then(list => { 
+    stockCache = list || []; 
+    renderStock(); 
+  });
+}
+
+function pastille(q,s){ if(q<=0) return 'red'; if(q<=s) return 'orange'; return 'green'; }
+
+function renderStock(){
+  const q = (document.getElementById('search').value||'').toLowerCase();
+  const el = document.getElementById('stock-list');
+  el.innerHTML='';
+  stockCache.filter(p=>(p.nom||'').toLowerCase().includes(q) || String(p.barcode).includes(q))
+    .forEach(p=>{
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="card-top" onclick="toggleEdit(${p.row})">
+          <div style="display:flex;gap:10px;align-items:center">
+            <div class="dot ${pastille(p.quantite,p.seuil)}"></div>
+            <div>
+              <div class="pname">${p.nom}</div>
+              <div class="psub">${p.contenance||''} · ${Number(p.prix||0).toFixed(2)}€ · Qté: ${p.quantite}</div>
+            </div>
+          </div>
+        </div>
+        <div class="edit-grid" id="edit-${p.row}" style="display:none">
+          <div><label>Nom</label><input id="e-nom-${p.row}" value="${p.nom||''}"></div>
+          <div><label>Catégorie</label><input id="e-cat-${p.row}" value="${p.categorie||''}"></div>
+          <div><label>Contenance</label><input id="e-cont-${p.row}" value="${p.contenance||''}"></div>
+          <div><label>Prix (€)</label><input type="number" step="0.01" id="e-prix-${p.row}" value="${p.prix||0}"></div>
+          <div><label>Seuil alerte</label><input type="number" id="e-seuil-${p.row}" value="${p.seuil||3}"></div>
+          <div><label>Quantité</label><input type="number" id="e-qte-${p.row}" value="${p.quantite||0}"></div>
+        </div>
+        <div class="row-actions" id="actions-${p.row}" style="display:none">
+          <button class="btn secondary" onclick="deleteRow('${p.barcode}')">Supprimer</button>
+          <button class="btn" onclick="saveEdit(${p.row},'${p.barcode}')">Enregistrer</button>
+        </div>`;
+      el.appendChild(card);
+    });
+}
+
+function toggleEdit(row){
+  const e = document.getElementById('edit-'+row), a = document.getElementById('actions-'+row);
+  const show = e.style.display==='none';
+  e.style.display = show?'grid':'none';
+  a.style.display = show?'flex':'none';
+}
+
+function saveEdit(row, barcode){
+  const p = {
+    row, barcode,
+    nom: document.getElementById('e-nom-'+row).value,
+    categorie: document.getElementById('e-cat-'+row).value,
+    contenance: document.getElementById('e-cont-'+row).value,
+    prix: document.getElementById('e-prix-'+row).value,
+    seuil: document.getElementById('e-seuil-'+row).value,
+    quantite: document.getElementById('e-qte-'+row).value
+  };
+  google.script.run.withSuccessHandler(()=>{ toast('Produit mis à jour'); loadStock(); }).updateProduct(p);
+}
+
+function deleteRow(barcode){
+  if(!confirm('Supprimer ce produit ?')) return;
+  google.script.run.withSuccessHandler(()=>{ toast('Produit supprimé'); loadStock(); }).deleteProduct(barcode);
+}
+
+// CREATION MODAL
+function openCreateModal(barcode){
+  document.getElementById('m-barcode').value = barcode || '';
+  document.getElementById('m-nom').value='';
+  document.getElementById('m-categorie').value='';
+  document.getElementById('m-contenance').value='';
+  document.getElementById('m-prix').value='';
+  document.getElementById('m-seuil').value=3;
+  document.getElementById('m-quantite').value = barcode ? 1 : 0;
+  document.getElementById('modal-bg').classList.add('show');
+}
+
+function closeModal(){ document.getElementById('modal-bg').classList.remove('show'); pendingBarcode=null; }
+
+function submitCreate(){
+  const p = {
+    barcode: document.getElementById('m-barcode').value.trim(),
+    nom: document.getElementById('m-nom').value.trim(),
+    categorie: document.getElementById('m-categorie').value.trim(),
+    contenance: document.getElementById('m-contenance').value.trim(),
+    prix: document.getElementById('m-prix').value,
+    seuil: document.getElementById('m-seuil').value,
+    quantite: document.getElementById('m-quantite').value
+  };
+  if(!p.barcode || !p.nom){ toast('Code-barre et nom requis'); return; }
+  google.script.run.withSuccessHandler(res=>{
+    if(!res.ok){ toast(res.error||'Erreur'); return; }
+    toast('Produit créé');
+    if(pendingBarcode){
+      sessionReception[pendingBarcode] = {nom:p.nom, qte:Number(p.quantite)||1};
+      renderSession('reception');
+    }
+    closeModal();
+    loadStock();
+  }).createProduct(p);
+}
+
+// COMMANDES FOURNISSEUR
+function loadEmail(){
+  callAPI('getSupplierEmail', {}, 'GET').then(res => {
+    document.getElementById('supplier-email').value = res.email || '';
+  });
+}
+
+function saveEmail(){
+  const email = document.getElementById('supplier-email').value.trim();
+  if(!email){ toast('Adresse email invalide'); return; }
+  callAPI('setSupplierEmail', { email }).then(() => { toast('E-mail enregistré'); });
+}
+
+function loadSuggestion(){
+  callAPI('getOrderSuggestion', {}, 'GET').then(list => {
+    // (votre code d'affichage de la liste de commande...)
+  });
+}
+
+function calculateOrderTotal(){
+  let total = 0;
+  document.querySelectorAll('.order-line').forEach(line=>{
+    const prix = Number(line.dataset.prix) || 0;
+    const qty = Number(line.querySelector('.order-qty').value) || 0;
+    total += prix * qty;
+  });
+  document.getElementById('order-total').textContent = `Total : ${total.toFixed(2)} €`;
+}
+
+function sendOrderNow(){
+  // ... préparation des items ...
+  toast('Génération du PDF et envoi...');
+  callAPI('sendOrder', { items, email }).then(res => {
+    if(res.ok) toast('Commande envoyée avec succès !');
+    else toast('Erreur lors de l\'envoi');
+  });
+}
+</script>
+</body>
+</html>
