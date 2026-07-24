@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Stock Salon</title>
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.10/html5-qrcode.min.js"></script>
 <style>
 :root{--bg:#f6f7f8;--card:#fff;--accent:#0f766e;--text:#111827;--muted:#6b7280;--green:#22c55e;--orange:#f59e0b;--red:#ef4444;--border:#e5e7eb}
 *{box-sizing:border-box}
@@ -250,13 +250,11 @@ function switchTab(tab){
   if(tab==='commande') { loadEmail(); loadSuggestion(); }
 }
 
-function startScanner(targetId) {
-  if (currentScannerTarget === targetId && html5QrCode && html5QrCode.isScanning) return;
+function startScanner(targetId){
+  if(currentScannerTarget === targetId && html5QrCode && html5QrCode.isScanning) return;
 
   stopScanner().then(() => {
     currentScannerTarget = targetId;
-
-    // 1. Initialisation avec détection matérielle native activée
     html5QrCode = new Html5Qrcode(targetId, {
       formatsToSupport: [
         Html5QrcodeSupportedFormats.EAN_13,
@@ -264,35 +262,25 @@ function startScanner(targetId) {
         Html5QrcodeSupportedFormats.UPC_A,
         Html5QrcodeSupportedFormats.UPC_E,
         Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.QR_CODE
       ],
-      verbose: false,
-      experimentalFeatures: {
-        useBarCodeDetectorIfSupported: true // ⚡ Moteur matériel natif (Android & iOS)
-      }
+      verbose: false
     });
 
-    // 2. Zone de scan rectangulaire dynamique (idéale pour codes-barres 1D)
-    const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
-      const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-      return {
-        width: Math.floor(viewfinderWidth * 0.85),
-        height: Math.floor(minEdge * 0.45)
-      };
-    };
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-    // 3. Configuration flux vidéo optimisée (720p à 15 FPS pour mise au point rapide)
     const config = {
-      fps: 15,
-      qrbox: qrboxFunction,
+      fps: 5,
+      ...(isIOS ? {} : { qrbox: { width: 250, height: 150 } }),
       aspectRatio: 1.0,
       videoConstraints: {
         facingMode: "environment",
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        advanced: [{ focusMode: "continuous" }]
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
       },
-      showTorchButtonIfSupported: true
+      showTorchButtonIfSupported: true,
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true }
     };
 
     html5QrCode.start(
@@ -300,16 +288,15 @@ function startScanner(targetId) {
       config,
       onScanSuccess
     ).catch(err => {
-      console.error("Tentative fallback caméra:", err);
+      console.error("Erreur d'accès à la caméra:", err);
       Html5Qrcode.getCameras().then(cams => {
-        if (!cams || !cams.length) {
+        if(!cams || !cams.length){
           toast("Caméra bloquée. Autorisez la caméra dans le navigateur.", true);
           return;
         }
-        // Sélection de la caméra arrière principale (évite les lentilles ultra-grand angle floues)
-        const back = cams.find(c => /back|rear|environment|arrière/i.test(c.label)) || cams[cams.length - 1];
+        const back = cams.find(c => /back|rear|environment|arrière/i.test(c.label)) || cams[0];
         html5QrCode.start(back.id, config, onScanSuccess);
-      }).catch(() => toast("Caméra bloquée. Autorisez la caméra dans le navigateur.", true));
+      }).catch(()=> toast("Caméra bloquée. Autorisez la caméra dans le navigateur.", true));
     });
   });
 }
