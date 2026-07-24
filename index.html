@@ -3,15 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>Scanner Ultra Rapide</title>
-<!-- Fallback ZXing uniquement si l'API native n'est pas dispo -->
+<title>Scanner Pro - Optimisé iOS</title>
 <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; margin: 0; background:#0b0d10; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
   .app { display:flex; flex-direction:column; height:100dvh; overflow:hidden; }
 
-  /* --- Vidéo brute --- */
+  /* --- Vidéo --- */
   #scan-zone { flex:0 0 45dvh; position:relative; background:#000; overflow:hidden; }
   #video { width: 100%; height: 100%; object-fit: cover; display: block; }
 
@@ -29,18 +28,26 @@
   #frame-overlay.ok { border-color:#22c55e; background: rgba(34, 197, 94, 0.2); }
   #frame-overlay.ok::after { display:none; }
 
-  /* UI Superposée */
+  /* Instructions à l'écran */
+  #ios-hint {
+    position:absolute; bottom:15px; left:0; right:0; text-align:center;
+    color:#cbd5e1; font-size:12px; font-weight:500; z-index:10; text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }
+
+  /* UI Superposée (Boutons) */
   #controls {
     position:absolute; top:10px; left:10px; right:10px; z-index:10;
-    display:flex; justify-content:space-between; align-items:center;
+    display:flex; justify-content:space-between; align-items:center; gap: 8px;
   }
   .btn {
     background:rgba(30, 41, 59, 0.85); color:#fff; border:1px solid rgba(255,255,255,0.2);
     padding:8px 12px; border-radius:8px; font-size:13px; backdrop-filter:blur(4px);
-    cursor:pointer; font-weight:600;
+    cursor:pointer; font-weight:600; flex:1; text-align:center;
   }
   .btn:active { background:rgba(255,255,255,0.2); }
-  .badge { background:rgba(0,0,0,0.6); color:#fff; font-size:12px; padding:6px 10px; border-radius:8px; backdrop-filter:blur(4px); }
+  .btn.active { background:rgba(34, 197, 94, 0.8); border-color:#4ade80; }
+  
+  .badge { background:rgba(0,0,0,0.6); color:#fff; font-size:12px; padding:8px 10px; border-radius:8px; backdrop-filter:blur(4px); white-space:nowrap; }
 
   #start-screen {
     position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -61,15 +68,18 @@
 <body>
 <div class="app">
   <div id="scan-zone">
-    <!-- playsinline est vital pour iOS -->
     <video id="video" autoplay muted playsinline></video>
     <div id="frame-overlay"></div>
     
     <div id="controls" style="display:none;">
-      <button class="btn" id="switch-cam-btn">🔄 Objectif (<span id="cam-index">1</span>/<span id="cam-total">1</span>)</button>
+      <button class="btn" id="switch-cam-btn">🔄 Cam <span id="cam-index">1</span>/<span id="cam-total">1</span></button>
+      <button class="btn" id="zoom-btn">🔍 Zoom x2</button>
+      <button class="btn" id="torch-btn">💡 Torche</button>
       <div class="badge" id="tech-badge">Mode</div>
     </div>
     
+    <div id="ios-hint" style="display:none;">Astuce : Ne collez pas l'objectif. Reculez le téléphone.</div>
+
     <div id="start-screen">
       <button id="start-btn">Activer la caméra</button>
       <div id="err-msg" style="color:#ef4444; margin-top:15px; font-size:14px;"></div>
@@ -78,7 +88,7 @@
 
   <div id="history-header">
     <h1>Scans (<span id="count">0</span>)</h1>
-    <button class="btn" id="clear-btn" style="padding:6px 10px; font-size:12px;">Effacer</button>
+    <button class="btn" id="clear-btn" style="flex:none; padding:6px 10px; font-size:12px;">Effacer</button>
   </div>
   <div id="history">
     <div id="empty" style="color:#5b6270; text-align:center; padding:20px;">Prêt à scanner</div>
@@ -90,7 +100,10 @@ const video = document.getElementById('video');
 const startScreen = document.getElementById('start-screen');
 const errMsg = document.getElementById('err-msg');
 const controls = document.getElementById('controls');
+const iosHint = document.getElementById('ios-hint');
 const switchCamBtn = document.getElementById('switch-cam-btn');
+const zoomBtn = document.getElementById('zoom-btn');
+const torchBtn = document.getElementById('torch-btn');
 const frameOverlay = document.getElementById('frame-overlay');
 const historyEl = document.getElementById('history');
 const emptyEl = document.getElementById('empty');
@@ -104,11 +117,12 @@ let scanCount = 0;
 let lastCode = null;
 let lastScanTime = 0;
 
-// Variables moteurs
+let isZoomed = false;
+let isTorchOn = false;
+
 let nativeDetector = null;
 let zxingReader = null;
 
-// Initialisation audio
 let audioCtx = null;
 function beep() {
   try {
@@ -151,7 +165,54 @@ document.getElementById('clear-btn').onclick = () => {
   lastCode = null;
 };
 
-// Cœur du système de scan : Boucle d'analyse
+// Application des réglages matériels avancés
+async function applyConstraints() {
+  if (!currentStream) return;
+  const track = currentStream.getVideoTracks()[0];
+  const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+  
+  const constraints = { advanced: [] };
+  let applied = false;
+
+  // Zoom
+  if (capabilities.zoom && isZoomed) {
+    // Tente de mettre un zoom x2
+    let zoomVal = capabilities.zoom.min + 1.5; 
+    if (zoomVal > capabilities.zoom.max) zoomVal = capabilities.zoom.max;
+    constraints.advanced.push({ zoom: zoomVal });
+    applied = true;
+  } else if (capabilities.zoom && !isZoomed) {
+    constraints.advanced.push({ zoom: capabilities.zoom.min });
+    applied = true;
+  }
+
+  // Torche
+  if (capabilities.torch) {
+    constraints.advanced.push({ torch: isTorchOn });
+    applied = true;
+  }
+
+  if (applied) {
+    try {
+      await track.applyConstraints(constraints);
+    } catch (e) {
+      console.log("Contraintes non supportées par ce navigateur/objectif.");
+    }
+  }
+}
+
+zoomBtn.onclick = () => {
+  isZoomed = !isZoomed;
+  zoomBtn.classList.toggle('active', isZoomed);
+  applyConstraints();
+};
+
+torchBtn.onclick = () => {
+  isTorchOn = !isTorchOn;
+  torchBtn.classList.toggle('active', isTorchOn);
+  applyConstraints();
+};
+
 async function scanLoop() {
   if (!scanning) return;
   
@@ -160,7 +221,6 @@ async function scanLoop() {
       let detectedCode = null;
       let detectedFormat = "CODE";
 
-      // 1. Essai avec le moteur natif (Ultra rapide, iOS 17+ / Android)
       if (nativeDetector) {
         const barcodes = await nativeDetector.detect(video);
         if (barcodes.length > 0) {
@@ -168,9 +228,7 @@ async function scanLoop() {
           detectedFormat = barcodes[0].format;
         }
       } 
-      // 2. Plan B : ZXing (plus lent, mais passe partout)
       else if (zxingReader) {
-        // Décodage "one-shot" de la frame actuelle
         const result = await zxingReader.decodeOnceFromVideoElement(video).catch(()=>null);
         if (result) {
           detectedCode = result.getText();
@@ -178,7 +236,6 @@ async function scanLoop() {
         }
       }
 
-      // Si on a trouvé un code et qu'on ne l'a pas spammé dans les 2 dernières secondes
       if (detectedCode) {
         const now = Date.now();
         if (detectedCode !== lastCode || (now - lastScanTime) > 2000) {
@@ -188,75 +245,70 @@ async function scanLoop() {
           addScan(detectedCode, detectedFormat);
         }
       }
-    } catch (e) {
-      // Ignorer les erreurs de frame vide
-    }
+    } catch (e) {}
   }
   
-  // Limite à ~10 images/secondes pour ne pas vider la batterie
   setTimeout(() => requestAnimationFrame(scanLoop), 100);
 }
 
-// Lancement d'une caméra spécifique
 async function startCamera(deviceId) {
   if (currentStream) {
     currentStream.getTracks().forEach(t => t.stop());
   }
+  
+  // Réinitialise les boutons
+  isZoomed = false; zoomBtn.classList.remove('active');
+  isTorchOn = false; torchBtn.classList.remove('active');
 
   try {
     currentStream = await navigator.mediaDevices.getUserMedia({
       video: {
         deviceId: { exact: deviceId },
-        width: { ideal: 1280 }, // Résolution modérée pour favoriser l'autofocus macro
+        width: { ideal: 1280 },
         height: { ideal: 720 },
-        advanced: [{ focusMode: "continuous" }] // Tente de forcer l'autofocus
+        advanced: [{ focusMode: "continuous" }]
       }
     });
     
     video.srcObject = currentStream;
     
-    // Attendre que la vidéo joue pour lancer la boucle
     video.onplay = () => {
       scanning = true;
       scanLoop();
+      // On teste si les API Zoom/Torch sont dispos pour cet objectif pour afficher/masquer les boutons
+      const track = currentStream.getVideoTracks()[0];
+      const caps = track.getCapabilities ? track.getCapabilities() : {};
+      zoomBtn.style.display = caps.zoom ? 'block' : 'none';
+      torchBtn.style.display = caps.torch ? 'block' : 'none';
     };
 
     document.getElementById('cam-index').textContent = currentCamIndex + 1;
     document.getElementById('cam-total').textContent = cameras.length;
     
   } catch (err) {
-    errMsg.textContent = "Erreur avec cet objectif : " + err.message;
+    errMsg.textContent = "Erreur caméra : " + err.message;
   }
 }
 
-// Initialisation globale
 async function init() {
-  errMsg.textContent = "Recherche des caméras...";
+  errMsg.textContent = "Chargement...";
   try {
-    // Force la permission
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     stream.getTracks().forEach(t => t.stop());
 
-    // Liste les caméras
     const devices = await navigator.mediaDevices.enumerateDevices();
-    // On ne garde que les caméras arrières (ou on garde tout si on ne peut pas identifier)
     cameras = devices.filter(d => d.kind === 'videoinput' && (!d.label || d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('arrière')));
     
     if (cameras.length === 0) cameras = devices.filter(d => d.kind === 'videoinput');
-    if (cameras.length === 0) throw new Error("Aucune caméra trouvée.");
+    if (cameras.length === 0) throw new Error("Aucune caméra.");
 
-    // Tenter d'initialiser le moteur natif
     if ('BarcodeDetector' in window) {
       try {
         nativeDetector = new BarcodeDetector({ formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'upc_a', 'upc_e'] });
         techBadge.textContent = "⚡ Natif";
-        techBadge.style.background = "rgba(34, 197, 94, 0.6)"; // Vert
-      } catch (e) {
-        // Fallback si erreur de format
-      }
+        techBadge.style.background = "rgba(34, 197, 94, 0.6)";
+      } catch (e) {}
     }
-    
-    // Fallback ZXing
     if (!nativeDetector) {
       zxingReader = new ZXing.BrowserMultiFormatReader();
       techBadge.textContent = "⚙️ ZXing";
@@ -264,9 +316,8 @@ async function init() {
 
     startScreen.style.display = 'none';
     controls.style.display = 'flex';
+    iosHint.style.display = 'block';
 
-    // Sur iPhone, l'objectif principal (qui fait la macro) est souvent le premier ou le dernier de la liste "back".
-    // On commence par le premier, l'utilisateur pourra faire tourner avec le bouton.
     currentCamIndex = 0;
     startCamera(cameras[currentCamIndex].deviceId);
 
@@ -276,12 +327,12 @@ async function init() {
 }
 
 document.getElementById('start-btn').onclick = () => {
-  if (audioCtx) audioCtx.resume(); else beep(); // Débloque le son
+  if (audioCtx) audioCtx.resume(); else beep();
   init();
 };
 
 switchCamBtn.onclick = () => {
-  scanning = false; // Pause le scan
+  scanning = false;
   currentCamIndex = (currentCamIndex + 1) % cameras.length;
   startCamera(cameras[currentCamIndex].deviceId);
 };
