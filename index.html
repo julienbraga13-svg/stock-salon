@@ -2,358 +2,197 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>Scanner Pro - Zoom Universel</title>
-<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gestion de Stock</title>
+
 <style>
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; margin: 0; background:#0b0d10; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-  .app { display:flex; flex-direction:column; height:100dvh; overflow:hidden; }
-
-  /* --- Vidéo --- */
-  #scan-zone { flex:0 0 45dvh; position:relative; background:#000; overflow:hidden; }
-  
-  /* Ajout d'une transition douce pour le zoom numérique */
-  #video { 
-    width: 100%; height: 100%; object-fit: cover; display: block; 
-    transition: transform 0.3s ease-out; transform-origin: center center;
-  }
-
-  /* Viseur */
-  #frame-overlay {
-    position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
-    width: 70%; height: 50%; border:2px solid rgba(255,255,255,0.4);
-    border-radius:12px; pointer-events:none; z-index: 5;
-    display: flex; align-items: center; justify-content: center;
-    transition: border-color 0.2s, background 0.2s;
-  }
-  #frame-overlay::after {
-    content: ''; width: 100%; height: 2px; background: rgba(239, 68, 68, 0.6);
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
-  }
-  #frame-overlay.ok { border-color:#22c55e; background: rgba(34, 197, 94, 0.2); }
-  #frame-overlay.ok::after { display:none; }
-
-  /* Instructions à l'écran */
-  #ios-hint {
-    position:absolute; bottom:15px; left:0; right:0; text-align:center;
-    color:#cbd5e1; font-size:12px; font-weight:500; z-index:10; text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-  }
-
-  /* UI Superposée (Boutons) */
-  #controls {
-    position:absolute; top:10px; left:10px; right:10px; z-index:10;
-    display:flex; justify-content:space-between; align-items:center; gap: 8px;
-  }
-  .btn {
-    background:rgba(30, 41, 59, 0.85); color:#fff; border:1px solid rgba(255,255,255,0.2);
-    padding:8px 12px; border-radius:8px; font-size:13px; backdrop-filter:blur(4px);
-    cursor:pointer; font-weight:600; flex:1; text-align:center;
-  }
-  .btn:active { background:rgba(255,255,255,0.2); }
-  .btn.active { background:rgba(34, 197, 94, 0.8); border-color:#4ade80; }
-  
-  .badge { background:rgba(0,0,0,0.6); color:#fff; font-size:12px; padding:8px 10px; border-radius:8px; backdrop-filter:blur(4px); white-space:nowrap; }
-
-  #start-screen {
-    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    background:#0b0d10; z-index: 20; padding:20px; text-align:center;
-  }
-  #start-btn { background:#2563eb; color:#fff; border:none; border-radius:10px; padding:15px 30px; font-size:16px; font-weight:bold; cursor:pointer; }
-  
-  /* --- Historique --- */
-  #history-header { flex:0 0 auto; display:flex; justify-content:space-between; padding:12px 16px; background:#14171c; color:#e8e8e8; border-top:1px solid #23262c; }
-  #history-header h1 { font-size:14px; margin:0; }
-  #history { flex:1 1 auto; overflow-y:auto; background:#0f1115; padding:12px; }
-  .item { background:#181b21; border:1px solid #23262c; border-radius:10px; padding:12px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
-  .item .code { font-family: monospace; color:#fff; font-size:16px; font-weight:bold; }
-  .item .meta { color:#8b93a1; font-size:11px; margin-top:4px; }
-  .item .fmt { background:#1e293b; color:#94a3b8; font-size:10px; padding:3px 8px; border-radius:4px; }
+body{
+    font-family:Arial;
+    background:#f2f2f2;
+    margin:0;
+    text-align:center;
+}
+h2{
+    background:#2196F3;
+    color:white;
+    margin:0;
+    padding:15px;
+}
+video{
+    width:95%;
+    max-width:500px;
+    border-radius:10px;
+    margin-top:15px;
+    border:3px solid #2196F3;
+}
+#code{
+    font-size:22px;
+    font-weight:bold;
+    color:#2196F3;
+    margin:15px;
+}
+table{
+    width:95%;
+    margin:auto;
+    border-collapse:collapse;
+    background:white;
+}
+th,td{
+    border:1px solid #ccc;
+    padding:10px;
+}
+button{
+    padding:8px 15px;
+    margin:2px;
+}
 </style>
 </head>
+
 <body>
-<div class="app">
-  <div id="scan-zone">
-    <video id="video" autoplay muted playsinline></video>
-    <div id="frame-overlay"></div>
-    
-    <div id="controls" style="display:none;">
-      <button class="btn" id="switch-cam-btn">🔄 <span id="cam-index">1</span>/<span id="cam-total">1</span></button>
-      <button class="btn" id="zoom-btn">🔍 Zoom x2</button>
-      <button class="btn" id="torch-btn" style="display:none;">💡 Torche</button>
-      <div class="badge" id="tech-badge">Mode</div>
-    </div>
-    
-    <div id="ios-hint" style="display:none;">Astuce : Reculez l'iPhone et utilisez le Zoom pour viser</div>
 
-    <div id="start-screen">
-      <button id="start-btn">Activer la caméra</button>
-      <div id="err-msg" style="color:#ef4444; margin-top:15px; font-size:14px;"></div>
-    </div>
-  </div>
+<h2>Gestion de Stock</h2>
 
-  <div id="history-header">
-    <h1>Scans (<span id="count">0</span>)</h1>
-    <button class="btn" id="clear-btn" style="flex:none; padding:6px 10px; font-size:12px;">Effacer</button>
-  </div>
-  <div id="history">
-    <div id="empty" style="color:#5b6270; text-align:center; padding:20px;">Prêt à scanner</div>
-  </div>
-</div>
+<video id="video" autoplay playsinline></video>
+
+<div id="code">En attente...</div>
+
+<table>
+<thead>
+<tr>
+<th>Code-barres</th>
+<th>Stock</th>
+<th>+</th>
+<th>-</th>
+</tr>
+</thead>
+<tbody id="stock"></tbody>
+</table>
 
 <script>
-const video = document.getElementById('video');
-const startScreen = document.getElementById('start-screen');
-const errMsg = document.getElementById('err-msg');
-const controls = document.getElementById('controls');
-const iosHint = document.getElementById('ios-hint');
-const switchCamBtn = document.getElementById('switch-cam-btn');
-const zoomBtn = document.getElementById('zoom-btn');
-const torchBtn = document.getElementById('torch-btn');
-const frameOverlay = document.getElementById('frame-overlay');
-const historyEl = document.getElementById('history');
-const emptyEl = document.getElementById('empty');
-const techBadge = document.getElementById('tech-badge');
 
-let cameras = [];
-let currentCamIndex = 0;
-let currentStream = null;
-let scanning = false;
-let scanCount = 0;
-let lastCode = null;
-let lastScanTime = 0;
+const video=document.getElementById("video");
+const codeAff=document.getElementById("code");
 
-let isZoomed = false;
-let isTorchOn = false;
+let stocks={};
 
-let nativeDetector = null;
-let zxingReader = null;
+async function camera(){
 
-// Détection basique pour iOS (pour afficher l'astuce spécifique)
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const stream=await navigator.mediaDevices.getUserMedia({
+video:{
+facingMode:"environment"
+}
+});
 
-let audioCtx = null;
-function beep() {
-  try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    o.type = 'sine'; o.frequency.value = 800; g.gain.value = 0.1;
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start(); o.stop(audioCtx.currentTime + 0.1);
-  } catch(e) {}
+video.srcObject=stream;
+
+if("BarcodeDetector" in window){
+
+const detector=new BarcodeDetector({
+formats:[
+"ean_13",
+"ean_8",
+"code_128",
+"upc_a",
+"upc_e",
+"qr_code"
+]
+});
+
+scan(detector);
+
+}else{
+
+alert("BarcodeDetector non supporté.");
+
 }
 
-function flash() {
-  frameOverlay.classList.add('ok');
-  setTimeout(() => frameOverlay.classList.remove('ok'), 300);
 }
 
-function addScan(code, format) {
-  scanCount++;
-  document.getElementById('count').textContent = scanCount;
-  emptyEl.style.display = 'none';
-  const item = document.createElement('div');
-  item.className = 'item';
-  item.innerHTML = `
-    <div>
-      <div class="code">${code}</div>
-      <div class="meta">${new Date().toLocaleTimeString('fr-FR')}</div>
-    </div>
-    <div class="fmt">${format}</div>
-  `;
-  historyEl.prepend(item);
+let dernier="";
+
+async function scan(detector){
+
+const codes=await detector.detect(video);
+
+if(codes.length){
+
+let code=codes[0].rawValue;
+
+if(code!=dernier){
+
+dernier=code;
+
+codeAff.innerHTML=code;
+
+ajouter(code);
+
+setTimeout(()=>dernier="",1000);
+
 }
 
-document.getElementById('clear-btn').onclick = () => {
-  historyEl.innerHTML = '';
-  historyEl.appendChild(emptyEl);
-  emptyEl.style.display = 'block';
-  scanCount = 0; document.getElementById('count').textContent = '0';
-  lastCode = null;
-};
-
-// Gestion Mixte du Zoom (Optique si dispo, CSS sinon) et de la Torche
-async function applyConstraints() {
-  if (!currentStream) return;
-  const track = currentStream.getVideoTracks()[0];
-  const capabilities = track.getCapabilities ? track.getCapabilities() : {};
-  
-  const constraints = { advanced: [] };
-  let appliedHardwareZoom = false;
-  let appliedHardwareTorch = false;
-
-  // Tentative de Zoom Optique (Matériel)
-  if (capabilities.zoom) {
-    let zoomVal = isZoomed ? (capabilities.zoom.min + 1.5) : capabilities.zoom.min; 
-    if (zoomVal > capabilities.zoom.max) zoomVal = capabilities.zoom.max;
-    constraints.advanced.push({ zoom: zoomVal });
-    appliedHardwareZoom = true;
-  }
-
-  // Tentative de Torche
-  if (capabilities.torch) {
-    constraints.advanced.push({ torch: isTorchOn });
-    appliedHardwareTorch = true;
-  }
-
-  if (constraints.advanced.length > 0) {
-    try {
-      await track.applyConstraints(constraints);
-    } catch (e) {
-      console.log("Contraintes refusées par le navigateur.");
-      appliedHardwareZoom = false; // Annulation si l'OS rejette l'application
-    }
-  }
-
-  // Zoom de secours (Numérique CSS) pour iPhone
-  if (!appliedHardwareZoom) {
-    video.style.transform = isZoomed ? 'scale(2.2)' : 'scale(1)';
-  } else {
-    video.style.transform = 'scale(1)'; // S'assure que le CSS est neutre si l'optique marche
-  }
 }
 
-zoomBtn.onclick = () => {
-  isZoomed = !isZoomed;
-  zoomBtn.classList.toggle('active', isZoomed);
-  applyConstraints();
-};
+requestAnimationFrame(()=>scan(detector));
 
-torchBtn.onclick = () => {
-  isTorchOn = !isTorchOn;
-  torchBtn.classList.toggle('active', isTorchOn);
-  applyConstraints();
-};
-
-async function scanLoop() {
-  if (!scanning) return;
-  
-  if (video.readyState === video.HAVE_ENOUGH_DATA) {
-    try {
-      let detectedCode = null;
-      let detectedFormat = "CODE";
-
-      if (nativeDetector) {
-        const barcodes = await nativeDetector.detect(video);
-        if (barcodes.length > 0) {
-          detectedCode = barcodes[0].rawValue;
-          detectedFormat = barcodes[0].format;
-        }
-      } 
-      else if (zxingReader) {
-        const result = await zxingReader.decodeOnceFromVideoElement(video).catch(()=>null);
-        if (result) {
-          detectedCode = result.getText();
-          detectedFormat = ZXing.BarcodeFormat[result.getBarcodeFormat()] || "CODE";
-        }
-      }
-
-      if (detectedCode) {
-        const now = Date.now();
-        if (detectedCode !== lastCode || (now - lastScanTime) > 2000) {
-          lastCode = detectedCode;
-          lastScanTime = now;
-          beep(); flash();
-          addScan(detectedCode, detectedFormat);
-        }
-      }
-    } catch (e) {}
-  }
-  
-  setTimeout(() => requestAnimationFrame(scanLoop), 100);
 }
 
-async function startCamera(deviceId) {
-  if (currentStream) {
-    currentStream.getTracks().forEach(t => t.stop());
-  }
-  
-  isZoomed = false; zoomBtn.classList.remove('active');
-  video.style.transform = 'scale(1)';
-  isTorchOn = false; torchBtn.classList.remove('active');
+function ajouter(code){
 
-  try {
-    currentStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        deviceId: { exact: deviceId },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        advanced: [{ focusMode: "continuous" }]
-      }
-    });
-    
-    video.srcObject = currentStream;
-    
-    video.onplay = () => {
-      scanning = true;
-      scanLoop();
-      
-      const track = currentStream.getVideoTracks()[0];
-      const caps = track.getCapabilities ? track.getCapabilities() : {};
-      
-      // Le bouton Zoom est TOUJOURS affiché maintenant (Système hybride optique/logiciel)
-      zoomBtn.style.display = 'block'; 
-      
-      // La torche n'apparaît que si l'OS le permet (Android)
-      torchBtn.style.display = caps.torch ? 'block' : 'none';
-    };
+if(!stocks[code]){
 
-    document.getElementById('cam-index').textContent = currentCamIndex + 1;
-    document.getElementById('cam-total').textContent = cameras.length;
-    
-  } catch (err) {
-    errMsg.textContent = "Erreur caméra : " + err.message;
-  }
+stocks[code]=1;
+
+}else{
+
+stocks[code]++;
+
 }
 
-async function init() {
-  errMsg.textContent = "Chargement...";
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    stream.getTracks().forEach(t => t.stop());
+afficher();
 
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    cameras = devices.filter(d => d.kind === 'videoinput' && (!d.label || d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('arrière')));
-    
-    if (cameras.length === 0) cameras = devices.filter(d => d.kind === 'videoinput');
-    if (cameras.length === 0) throw new Error("Aucune caméra.");
-
-    if ('BarcodeDetector' in window) {
-      try {
-        nativeDetector = new BarcodeDetector({ formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'upc_a', 'upc_e'] });
-        techBadge.textContent = "⚡ Natif";
-        techBadge.style.background = "rgba(34, 197, 94, 0.6)";
-      } catch (e) {}
-    }
-    if (!nativeDetector) {
-      zxingReader = new ZXing.BrowserMultiFormatReader();
-      techBadge.textContent = "⚙️ ZXing";
-    }
-
-    startScreen.style.display = 'none';
-    controls.style.display = 'flex';
-    if (isIOS) iosHint.style.display = 'block';
-
-    currentCamIndex = 0;
-    startCamera(cameras[currentCamIndex].deviceId);
-
-  } catch (err) {
-    errMsg.textContent = "Erreur : " + err.message;
-  }
 }
 
-document.getElementById('start-btn').onclick = () => {
-  if (audioCtx) audioCtx.resume(); else beep();
-  init();
-};
+function plus(code){
 
-switchCamBtn.onclick = () => {
-  scanning = false;
-  currentCamIndex = (currentCamIndex + 1) % cameras.length;
-  startCamera(cameras[currentCamIndex].deviceId);
-};
+stocks[code]++;
+
+afficher();
+
+}
+
+function moins(code){
+
+if(stocks[code]>0)
+stocks[code]--;
+
+afficher();
+
+}
+
+function afficher(){
+
+let html="";
+
+for(let c in stocks){
+
+html+=`
+<tr>
+<td>${c}</td>
+<td>${stocks[c]}</td>
+<td><button onclick="plus('${c}')">+</button></td>
+<td><button onclick="moins('${c}')">-</button></td>
+</tr>
+`;
+
+}
+
+document.getElementById("stock").innerHTML=html;
+
+}
+
+camera();
+
 </script>
+
 </body>
 </html>
