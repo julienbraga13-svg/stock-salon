@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <title>Scanner de codes-barres Pro</title>
-<!-- Remplacement par ZXing, beaucoup plus bas niveau et robuste -->
 <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -14,19 +13,13 @@
   /* --- Zone caméra --- */
   #scan-zone { flex:0 0 35dvh; position:relative; background:#000; overflow:hidden; }
   
-  /* Balise vidéo native entièrement contrôlée par nous */
   #video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
+    width: 100%; height: 100%; object-fit: cover; display: block;
   }
 
   #frame-overlay {
     position:absolute; inset:15px; border:2px solid rgba(255,255,255,0.4);
-    border-radius:12px; pointer-events:none; transition: all 0.2s;
-    z-index: 5;
-    /* Ligne de visée rouge style laser */
+    border-radius:12px; pointer-events:none; transition: all 0.2s; z-index: 5;
     display: flex; align-items: center; justify-content: center;
   }
   #frame-overlay::after {
@@ -46,7 +39,15 @@
   }
   #err-msg { color:#f87171; font-size:13px; margin-top:15px; max-width:90%; }
   
-  .badge { position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.6); color:#fff; font-size:11px; padding:4px 8px; border-radius:6px; z-index:6; }
+  .badge { position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.6); color:#fff; font-size:11px; padding:4px 8px; border-radius:6px; z-index:6; backdrop-filter: blur(4px); }
+  
+  /* Bouton de bascule de caméra */
+  #switch-cam-btn {
+    position:absolute; top:8px; left:8px; background:rgba(255,255,255,0.15); color:#fff;
+    border:1px solid rgba(255,255,255,0.3); font-size:12px; padding:5px 10px; border-radius:6px;
+    z-index:6; cursor:pointer; display:none; backdrop-filter: blur(4px); display: flex; align-items: center; gap: 5px;
+  }
+  #switch-cam-btn:active { background:rgba(255,255,255,0.3); }
 
   /* --- Historique --- */
   #history-header {
@@ -70,9 +71,9 @@
 <body>
 <div class="app">
   <div id="scan-zone">
-    <!-- playsinline est OBLIGATOIRE sur iOS pour éviter que la vidéo passe en plein écran et bloque le scan -->
     <video id="video" autoplay muted playsinline></video>
     <div id="frame-overlay"></div>
+    <button id="switch-cam-btn" style="display:none;">🔄 Changer</button>
     <div class="badge" id="count-badge">0 scan</div>
     
     <div id="start-overlay">
@@ -99,14 +100,17 @@ const frame = document.getElementById('frame-overlay');
 const historyEl = document.getElementById('history');
 const emptyEl = document.getElementById('empty');
 const countBadge = document.getElementById('count-badge');
+const switchCamBtn = document.getElementById('switch-cam-btn');
 
 let scanCount = 0;
 let audioCtx = null;
-let codeReader = null;
+let codeReader = new ZXing.BrowserMultiFormatReader();
 let lastScannedCode = null;
 let lastScanTime = 0;
 
-// Bip sonore robuste
+let videoDevices = [];
+let currentDeviceIndex = 0;
+
 function beep() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -152,84 +156,84 @@ document.getElementById('clear-btn').addEventListener('click', () => {
   lastScannedCode = null;
 });
 
-async function startScanner() {
+// Lance le décodage avec un ID de caméra spécifique
+function startScannerWithDevice(deviceId) {
+  codeReader.reset(); // Stop la caméra actuelle
+  
+  codeReader.decodeFromVideoDevice(deviceId, 'video', (result, err) => {
+    if (result) {
+      const text = result.getText();
+      const format = result.getBarcodeFormat();
+      const now = Date.now();
+      
+      if (text !== lastScannedCode || (now - lastScanTime) > 2000) {
+        lastScannedCode = text;
+        lastScanTime = now;
+        beep(); flashSuccess();
+        const formatName = ZXing.BarcodeFormat[format] || 'CODE';
+        addToHistory(text, formatName);
+      }
+    }
+  });
+}
+
+// Initialisation globale
+async function initScanner() {
   errMsg.textContent = "Initialisation...";
   
   try {
-    // Initialisation de ZXing
-    codeReader = new ZXing.BrowserMultiFormatReader();
+    // 1. Demander l'accès à la caméra de force pour que iOS nous donne les vrais noms des objectifs
+    const tempStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    tempStream.getTracks().forEach(track => track.stop()); // On coupe aussitôt, on a juste forcé la permission
+
+    // 2. Récupérer la liste complète des objectifs
+    videoDevices = await codeReader.listVideoInputDevices();
     
-    // Contraintes strictes pour forcer la caméra arrière
-    const constraints = {
-      video: { 
-        facingMode: { exact: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      }
-    };
+    if (videoDevices.length === 0) {
+      throw new Error("Aucune caméra détectée");
+    }
 
     startOverlay.style.display = 'none';
 
-    // Lancement de la lecture continue
-    codeReader.decodeFromConstraints(constraints, 'video', (result, err) => {
-      if (result) {
-        const text = result.getText();
-        const format = result.getBarcodeFormat();
-        const now = Date.now();
-        
-        // Anti-doublon : évite de scanner le même code en boucle à moins de 2 secondes d'intervalle
-        if (text !== lastScannedCode || (now - lastScanTime) > 2000) {
-          lastScannedCode = text;
-          lastScanTime = now;
-          
-          beep();
-          flashSuccess();
-          
-          // ZXing retourne un entier pour le format, on essaie de le traduire
-          const formatName = ZXing.BarcodeFormat[format] || 'CODE';
-          addToHistory(text, formatName);
-        }
-      }
-      
-      // Les erreurs sont normales ici (ex: aucun code trouvé dans la frame actuelle)
-      // On ne les log pas pour ne pas spammer la console
-    });
+    // 3. Afficher le bouton de bascule si plus d'une caméra est dispo
+    if (videoDevices.length > 1) {
+      switchCamBtn.style.display = 'flex';
+    }
+
+    // 4. Essayer de trouver la caméra arrière principale par défaut
+    // ZXing retourne souvent la caméra arrière en dernier, ou on peut chercher par mot-clé
+    let defaultIndex = videoDevices.findIndex(d => /back|arrière|environment/i.test(d.label));
+    if (defaultIndex === -1) {
+        // Si les labels ne sont pas explicites, on prend la dernière (sur mobile, c'est souvent la dorsale principale)
+        defaultIndex = videoDevices.length > 1 ? videoDevices.length - 1 : 0;
+    }
+    
+    currentDeviceIndex = defaultIndex;
+
+    // 5. Lancer le flux avec la caméra choisie
+    startScannerWithDevice(videoDevices[currentDeviceIndex].deviceId);
 
   } catch (err) {
     console.error(err);
     startOverlay.style.display = 'flex';
-    // Fallback si "exact: environment" bloque (parfois le cas sur d'anciens appareils)
-    if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
-       errMsg.textContent = "Tentative avec la caméra par défaut...";
-       fallbackStart();
-    } else {
-       errMsg.textContent = "Erreur caméra. HTTPS est-il actif ?";
-    }
+    errMsg.textContent = "Erreur d'accès à la caméra. Vérifiez les autorisations du navigateur.";
   }
 }
 
-function fallbackStart() {
-  codeReader.decodeFromConstraints({ video: { facingMode: "environment" } }, 'video', (result, err) => {
-      if (result) {
-        const text = result.getText();
-        if (text !== lastScannedCode || (Date.now() - lastScanTime) > 2000) {
-          lastScannedCode = text;
-          lastScanTime = Date.now();
-          beep(); flashSuccess();
-          addToHistory(text, ZXing.BarcodeFormat[result.getBarcodeFormat()] || 'CODE');
-        }
-      }
-  }).catch(e => {
-    errMsg.textContent = "Impossible d'accéder à la caméra.";
-  });
-}
+// Gestionnaire du bouton "Changer de caméra"
+switchCamBtn.addEventListener('click', () => {
+  if (videoDevices.length > 1) {
+    // Passe à l'objectif suivant (boucle)
+    currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
+    startScannerWithDevice(videoDevices[currentDeviceIndex].deviceId);
+  }
+});
 
 startBtn.addEventListener('click', () => {
-  // Débloque l'audio sur iOS
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-  else beep(); // Init silencieux
+  else beep(); 
   
-  startScanner();
+  initScanner();
 });
 </script>
 </body>
