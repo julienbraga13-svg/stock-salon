@@ -270,10 +270,14 @@ function startScanner(targetId){
 
     const config = {
       fps: 10,
-      // Sur iOS on retire qrbox : bug connu de désalignement zone/vidéo
       ...(isIOS ? {} : { qrbox: { width: 250, height: 150 } }),
       aspectRatio: 1.0,
-      disableFlip: false,
+      videoConstraints: {
+        facingMode: "environment",
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        advanced: [{ focusMode: "continuous" }]
+      },
       showTorchButtonIfSupported: true
     };
 
@@ -283,7 +287,13 @@ function startScanner(targetId){
       onScanSuccess
     ).catch(err => {
       console.error("Erreur d'accès à la caméra:", err);
-      toast("Caméra bloquée. Autorisez la caméra dans le navigateur.", true);
+      Html5Qrcode.getCameras().then(cams => {
+        if(cams && cams.length){
+          html5QrCode.start(cams[cams.length-1].id, config, onScanSuccess);
+        } else {
+          toast("Caméra bloquée. Autorisez la caméra dans le navigateur.", true);
+        }
+      }).catch(()=> toast("Caméra bloquée. Autorisez la caméra dans le navigateur.", true));
     });
   });
 }
