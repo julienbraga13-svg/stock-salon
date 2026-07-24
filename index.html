@@ -268,53 +268,47 @@ function startScanner(targetId){
       verbose: false
     });
 
-    // Zone de scan dynamique adaptée aux codes-barres 1D (rectangulaire)
-    const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
-      const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-      return {
-        width: Math.floor(minEdge * 0.85),
-        height: Math.floor(minEdge * 0.45)
-      };
-    };
-
+    // Configuration épurée sans contraintes de résolution explicites (évite l'écran noir iOS)
     const config = {
-      fps: 15, // Plus fluide pour capturer les images nettes
-      qrbox: qrboxFunction, // Obligatoire pour cibler la zone de lecture sur iPhone
+      fps: 10,
+      qrbox: { width: 280, height: 160 }, // Zone de scan rectangulaire (optimisée EAN/1D)
       aspectRatio: 1.0,
-      videoConstraints: {
-        facingMode: "environment",
-        width: { ideal: 1280 }, // 720p permet une mise au point nette et rapide de près
-        height: { ideal: 720 }
-      },
-      showTorchButtonIfSupported: true,
-      experimentalFeatures: {
-        useBarCodeDetectorIfSupported: false // Désactivé sur iOS car l'API native gère mal le 1D
-      }
+      experimentalFeatures: { useBarCodeDetectorIfSupported: false }
     };
 
+    // 1ère tentative : lancement standard via l'orientation "environment"
     html5QrCode.start(
       { facingMode: "environment" },
       config,
       onScanSuccess
-    ).catch(err => {
-      console.error("Erreur d'accès à la caméra:", err);
+    ).catch(() => {
+      // 2ème tentative (Secours iOS) : détection et ciblage explicite de la caméra arrière
       Html5Qrcode.getCameras().then(cams => {
         if(!cams || !cams.length){
-          toast("Caméra bloquée. Autorisez la caméra dans le navigateur.", true);
+          toast("Aucune caméra disponible.", true);
           return;
         }
-        const back = cams.find(c => /back|rear|environment|arrière/i.test(c.label)) || cams[0];
-        html5QrCode.start(back.id, config, onScanSuccess);
-      }).catch(()=> toast("Caméra bloquée. Autorisez la caméra dans le navigateur.", true));
+        const backCam = cams.find(c => /back|rear|environment|arrière/i.test(c.label)) || cams[cams.length - 1];
+        html5QrCode.start(backCam.id, config, onScanSuccess);
+      }).catch(() => toast("Caméra bloquée. Vérifiez les autorisations iOS et l'accès HTTPS.", true));
     });
   });
 }
+
 function stopScanner(){
-  if(html5QrCode && html5QrCode.isScanning){
-    return html5QrCode.stop().then(() => {
-      html5QrCode.clear();
+  if(html5QrCode){
+    if(html5QrCode.isScanning){
+      return html5QrCode.stop().then(() => {
+        try { html5QrCode.clear(); } catch(e){}
+        currentScannerTarget = null;
+      }).catch(err => {
+        console.error("Erreur lors de l'arrêt du scanner :", err);
+        currentScannerTarget = null;
+      });
+    } else {
+      try { html5QrCode.clear(); } catch(e){}
       currentScannerTarget = null;
-    }).catch(err => console.error(err));
+    }
   }
   return Promise.resolve();
 }
