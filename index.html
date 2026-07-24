@@ -147,15 +147,12 @@ async function startScanner() {
   try {
     html5Qr = new Html5Qrcode('reader', { verbose: false });
     
-    // Configuration optimisée : pas de qrbox figé pour permettre au moteur de scanner toute l'image, 
-    // et FPS ajusté à 10 pour une analyse fluide sur iOS.
     const config = {
-      fps: 10,
+      fps: 15,
       aspectRatio: window.innerWidth / (window.innerHeight * 0.333)
     };
 
     const onSuccess = (decodedText, result) => {
-      // Récupération sécurisée du nom du format peu importe la structure renvoyée par le décodeur
       const fmt = result?.result?.format?.formatName || result?.format?.formatName || 'CODE';
       beep();
       flashGreen();
@@ -173,8 +170,25 @@ async function startScanner() {
       if (backCamera) {
         await html5Qr.start(backCamera.id, config, onSuccess, onFailure);
       } else {
-        await html5Qr.start({ facingMode: "environment" }, config, onSuccess, onFailure);
+        await html5OrgStartDefault();
       }
+
+      // Correctif spécifique iOS : application forcée des contraintes de flux pour débloquer le moteur de décodage
+      setTimeout(async () => {
+        try {
+          const capabilities = html5Qr.getRunningTrackCapabilities();
+          if (capabilities) {
+            await html5Qr.applyVideoConstraints({
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 15 }
+            });
+          }
+        } catch (e) {
+          console.-log("Appoint constraints non supporté", e);
+        }
+      }, 1000);
+
     } else {
       await html5Qr.start({ facingMode: "environment" }, config, onSuccess, onFailure);
     }
