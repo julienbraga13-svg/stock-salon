@@ -268,19 +268,28 @@ function startScanner(targetId){
       verbose: false
     });
 
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    // Zone de scan dynamique adaptée aux codes-barres 1D (rectangulaire)
+    const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
+      const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+      return {
+        width: Math.floor(minEdge * 0.85),
+        height: Math.floor(minEdge * 0.45)
+      };
+    };
 
     const config = {
-      fps: 5,
-      ...(isIOS ? {} : { qrbox: { width: 250, height: 150 } }),
+      fps: 15, // Plus fluide pour capturer les images nettes
+      qrbox: qrboxFunction, // Obligatoire pour cibler la zone de lecture sur iPhone
       aspectRatio: 1.0,
       videoConstraints: {
         facingMode: "environment",
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
+        width: { ideal: 1280 }, // 720p permet une mise au point nette et rapide de près
+        height: { ideal: 720 }
       },
       showTorchButtonIfSupported: true,
-      experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: false // Désactivé sur iOS car l'API native gère mal le 1D
+      }
     };
 
     html5QrCode.start(
@@ -300,7 +309,6 @@ function startScanner(targetId){
     });
   });
 }
-
 function stopScanner(){
   if(html5QrCode && html5QrCode.isScanning){
     return html5QrCode.stop().then(() => {
