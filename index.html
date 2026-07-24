@@ -1,150 +1,40 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Scanner Codes-Barres</title>
-<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
-<style>
-  html,body{margin:0;height:100%;font-family:-apple-system,system-ui,Roboto,sans-serif;background:#111;color:#fff;overflow:hidden}
-  #top{height:33vh;position:relative;background:#000;overflow:hidden}
-  #video{width:100%;height:100%;object-fit:cover;display:block;background:#000}
-  #status{position:absolute;top:0;left:0;right:0;text-align:center;padding:6px;font-size:12px;color:#0f0;background:rgba(0,0,0,.5);z-index:2}
-  #last{position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:18px;font-weight:bold;padding:8px;background:rgba(0,0,0,.6);word-break:break-all;z-index:2}
-  #bottom{height:67vh;overflow-y:auto;padding:0 10px;box-sizing:border-box}
-  #histHeader{display:flex;justify-content:space-between;align-items:center;padding:10px 0;position:sticky;top:0;background:#111}
-  #histHeader h3{margin:0;font-size:16px}
-  #clearBtn{background:#a00;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:13px}
-  .item{border-bottom:1px solid #333;padding:8px 0;display:flex;justify-content:space-between;font-size:14px}
-  .item span:last-child{color:#888}
-</style>
+  <meta charset="UTF-8">
+  <title>Scanner de Code-Barres</title>
 </head>
 <body>
-<div id="top">
-  <div id="status">Initialisation caméra…</div>
-  <video id="video" muted autoplay playsinline></video>
-  <div id="last">En attente…</div>
-</div>
-<div id="bottom">
-  <div id="histHeader">
-    <h3 id="count">Historique (0)</h3>
-    <button id="clearBtn">Effacer</button>
-  </div>
-  <div id="history"></div>
-</div>
+  <h2>Scanner un produit</h2>
+  <div id="scanner-container"></div>
+  <p id="result">Résultat : aucun</p>
 
-<script>
-let codeReader = null;
-let scanStream = null;
-let scanTimer = null;
-let lastCode = null, lastTime = 0;
-const DELAY = 1000;
-let total = 0;
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <script>
+    Quagga.init({
+      inputStream: {
+        name: "Live",
+        type: "LiveStream",
+        target: document.querySelector('#scanner-container'),
+      },
+      decoder: {
+        readers: ["ean_reader"] // "ean_reader" pour les codes-barres de produits alimentaires
+      }
+    }, function(err) {
+      if (err) {
+        console.log(err);
+        return;
+      }
+      console.log("Scanner prêt !");
+      Quagga.start();
+    });
 
-function getScanHints_(){
-  const hints = new Map();
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-    ZXing.BarcodeFormat.EAN_13,
-    ZXing.BarcodeFormat.EAN_8,
-    ZXing.BarcodeFormat.UPC_A,
-    ZXing.BarcodeFormat.UPC_E,
-    ZXing.BarcodeFormat.CODE_128,
-    ZXing.BarcodeFormat.CODE_39
-  ]);
-  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-  return hints;
-}
-
-async function pickBackCameraId_(reader){
-  try{
-    const devices = await reader.listVideoInputDevices();
-    if(!devices.length) return undefined;
-    const back = devices.find(d => /back|rear|environment|arrière/i.test(d.label));
-    return (back || devices[devices.length - 1]).deviceId;
-  }catch(e){
-    return undefined;
-  }
-}
-
-async function startScanner(){
-  await stopScanner();
-  const videoEl = document.getElementById('video');
-  if(!codeReader) codeReader = new ZXing.BrowserMultiFormatReader(getScanHints_());
-
-  try{
-    const deviceId = await pickBackCameraId_(codeReader);
-    const videoConstraints = deviceId
-      ? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-      : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } };
-
-    scanStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
-    videoEl.srcObject = scanStream;
-    await videoEl.play().catch(()=>{});
-
-    document.getElementById("status").textContent = "Caméra active — scannez un code";
-    scanLoop_(videoEl);
-  }catch(err){
-    console.error("Erreur lancement caméra :", err);
-    document.getElementById("status").textContent = "Erreur caméra: " + err;
-  }
-}
-
-function scanLoop_(videoEl){
-  if(videoEl.readyState >= 2 && videoEl.videoWidth > 0){
-    try{
-      const result = codeReader.decode(videoEl);
-      if(result) onScanSuccess(result.getText());
-    }catch(e){}
-  }
-  scanTimer = setTimeout(() => scanLoop_(videoEl), 200);
-}
-
-async function stopScanner(){
-  if(scanTimer){ clearTimeout(scanTimer); scanTimer = null; }
-  if(scanStream){
-    scanStream.getTracks().forEach(t => t.stop());
-    scanStream = null;
-  }
-}
-
-function onScanSuccess(decodedText){
-  const now = Date.now();
-  if(decodedText === lastCode && (now - lastTime) < DELAY) return;
-  lastCode = decodedText;
-  lastTime = now;
-  if(navigator.vibrate) navigator.vibrate(70);
-  beep();
-  onScan(decodedText);
-}
-
-function beep(){
-  try{
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
-    g.gain.setValueAtTime(0.15, ctx.currentTime);
-    o.start(); o.stop(ctx.currentTime+0.08);
-  }catch(e){}
-}
-
-function onScan(code){
-  document.getElementById("last").textContent = code;
-  const row = document.createElement("div");
-  row.className = "item";
-  const t = new Date().toLocaleTimeString();
-  row.innerHTML = `<span>${code}</span><span>${t}</span>`;
-  document.getElementById("history").prepend(row);
-  total++;
-  document.getElementById("count").textContent = `Historique (${total})`;
-}
-
-document.getElementById("clearBtn").onclick = () => {
-  document.getElementById("history").innerHTML = "";
-  total = 0;
-  document.getElementById("count").textContent = "Historique (0)";
-};
-
-window.addEventListener('DOMContentLoaded', startScanner);
-</script>
+    Quagga.onDetected(function(result) {
+      const code = result.codeResult.code;
+      document.getElementById('result').textContent = "Code-barres détecté : " + code;
+      console.log("Code détecté :", code);
+      Quagga.stop();
+    });
+  </script>
 </body>
 </html>
