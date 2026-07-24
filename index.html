@@ -223,9 +223,13 @@ function getScanHints_(){
 
 // Choisit la meilleure caméra arrière disponible en inspectant les labels
 // réels des périphériques (plus fiable que facingMode sur Android).
-async function pickBackCameraId_(){
+// NB: listVideoInputDevices() est une méthode d'INSTANCE dans @zxing/library,
+// pas une méthode statique — d'où le bug précédent (échec silencieux, la
+// caméra démarrait alors en fallback basse résolution, insuffisant pour lire
+// un code-barre net).
+async function pickBackCameraId_(reader){
   try{
-    const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
+    const devices = await reader.listVideoInputDevices();
     if(!devices.length) return undefined;
     const back = devices.find(d => /back|rear|environment|arrière/i.test(d.label));
     return (back || devices[devices.length - 1]).deviceId;
@@ -242,8 +246,14 @@ async function startScanner(target){
   if(!codeReader) codeReader = new ZXing.BrowserMultiFormatReader(getScanHints_());
 
   try{
-    const deviceId = await pickBackCameraId_();
-    await codeReader.decodeFromVideoDevice(deviceId, videoEl, (result, err) => {
+    const deviceId = await pickBackCameraId_(codeReader);
+    // Résolution + mise au point explicites : un flux par défaut (souvent
+    // 640x480, focus fixe) est trop imprécis pour décoder un code-barre 1D.
+    const videoConstraints = deviceId
+      ? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] }
+      : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] };
+
+    await codeReader.decodeFromConstraints({ video: videoConstraints, audio: false }, videoEl, (result, err) => {
       if(result) onScanSuccess(result.getText());
       // les erreurs "NotFoundException" sont normales (aucun code détecté sur la frame), on les ignore
     });
