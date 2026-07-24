@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>Scanner Pro - Optimisé iOS</title>
+<title>Scanner Pro - Zoom Universel</title>
 <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -12,14 +12,20 @@
 
   /* --- Vidéo --- */
   #scan-zone { flex:0 0 45dvh; position:relative; background:#000; overflow:hidden; }
-  #video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  
+  /* Ajout d'une transition douce pour le zoom numérique */
+  #video { 
+    width: 100%; height: 100%; object-fit: cover; display: block; 
+    transition: transform 0.3s ease-out; transform-origin: center center;
+  }
 
   /* Viseur */
   #frame-overlay {
     position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
     width: 70%; height: 50%; border:2px solid rgba(255,255,255,0.4);
-    border-radius:12px; pointer-events:none; transition: all 0.2s; z-index: 5;
+    border-radius:12px; pointer-events:none; z-index: 5;
     display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.2s, background 0.2s;
   }
   #frame-overlay::after {
     content: ''; width: 100%; height: 2px; background: rgba(239, 68, 68, 0.6);
@@ -72,13 +78,13 @@
     <div id="frame-overlay"></div>
     
     <div id="controls" style="display:none;">
-      <button class="btn" id="switch-cam-btn">🔄 Cam <span id="cam-index">1</span>/<span id="cam-total">1</span></button>
+      <button class="btn" id="switch-cam-btn">🔄 <span id="cam-index">1</span>/<span id="cam-total">1</span></button>
       <button class="btn" id="zoom-btn">🔍 Zoom x2</button>
-      <button class="btn" id="torch-btn">💡 Torche</button>
+      <button class="btn" id="torch-btn" style="display:none;">💡 Torche</button>
       <div class="badge" id="tech-badge">Mode</div>
     </div>
     
-    <div id="ios-hint" style="display:none;">Astuce : Ne collez pas l'objectif. Reculez le téléphone.</div>
+    <div id="ios-hint" style="display:none;">Astuce : Reculez l'iPhone et utilisez le Zoom pour viser</div>
 
     <div id="start-screen">
       <button id="start-btn">Activer la caméra</button>
@@ -123,6 +129,9 @@ let isTorchOn = false;
 let nativeDetector = null;
 let zxingReader = null;
 
+// Détection basique pour iOS (pour afficher l'astuce spécifique)
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
 let audioCtx = null;
 function beep() {
   try {
@@ -165,39 +174,44 @@ document.getElementById('clear-btn').onclick = () => {
   lastCode = null;
 };
 
-// Application des réglages matériels avancés
+// Gestion Mixte du Zoom (Optique si dispo, CSS sinon) et de la Torche
 async function applyConstraints() {
   if (!currentStream) return;
   const track = currentStream.getVideoTracks()[0];
   const capabilities = track.getCapabilities ? track.getCapabilities() : {};
   
   const constraints = { advanced: [] };
-  let applied = false;
+  let appliedHardwareZoom = false;
+  let appliedHardwareTorch = false;
 
-  // Zoom
-  if (capabilities.zoom && isZoomed) {
-    // Tente de mettre un zoom x2
-    let zoomVal = capabilities.zoom.min + 1.5; 
+  // Tentative de Zoom Optique (Matériel)
+  if (capabilities.zoom) {
+    let zoomVal = isZoomed ? (capabilities.zoom.min + 1.5) : capabilities.zoom.min; 
     if (zoomVal > capabilities.zoom.max) zoomVal = capabilities.zoom.max;
     constraints.advanced.push({ zoom: zoomVal });
-    applied = true;
-  } else if (capabilities.zoom && !isZoomed) {
-    constraints.advanced.push({ zoom: capabilities.zoom.min });
-    applied = true;
+    appliedHardwareZoom = true;
   }
 
-  // Torche
+  // Tentative de Torche
   if (capabilities.torch) {
     constraints.advanced.push({ torch: isTorchOn });
-    applied = true;
+    appliedHardwareTorch = true;
   }
 
-  if (applied) {
+  if (constraints.advanced.length > 0) {
     try {
       await track.applyConstraints(constraints);
     } catch (e) {
-      console.log("Contraintes non supportées par ce navigateur/objectif.");
+      console.log("Contraintes refusées par le navigateur.");
+      appliedHardwareZoom = false; // Annulation si l'OS rejette l'application
     }
+  }
+
+  // Zoom de secours (Numérique CSS) pour iPhone
+  if (!appliedHardwareZoom) {
+    video.style.transform = isZoomed ? 'scale(2.2)' : 'scale(1)';
+  } else {
+    video.style.transform = 'scale(1)'; // S'assure que le CSS est neutre si l'optique marche
   }
 }
 
@@ -256,8 +270,8 @@ async function startCamera(deviceId) {
     currentStream.getTracks().forEach(t => t.stop());
   }
   
-  // Réinitialise les boutons
   isZoomed = false; zoomBtn.classList.remove('active');
+  video.style.transform = 'scale(1)';
   isTorchOn = false; torchBtn.classList.remove('active');
 
   try {
@@ -275,10 +289,14 @@ async function startCamera(deviceId) {
     video.onplay = () => {
       scanning = true;
       scanLoop();
-      // On teste si les API Zoom/Torch sont dispos pour cet objectif pour afficher/masquer les boutons
+      
       const track = currentStream.getVideoTracks()[0];
       const caps = track.getCapabilities ? track.getCapabilities() : {};
-      zoomBtn.style.display = caps.zoom ? 'block' : 'none';
+      
+      // Le bouton Zoom est TOUJOURS affiché maintenant (Système hybride optique/logiciel)
+      zoomBtn.style.display = 'block'; 
+      
+      // La torche n'apparaît que si l'OS le permet (Android)
       torchBtn.style.display = caps.torch ? 'block' : 'none';
     };
 
@@ -316,7 +334,7 @@ async function init() {
 
     startScreen.style.display = 'none';
     controls.style.display = 'flex';
-    iosHint.style.display = 'block';
+    if (isIOS) iosHint.style.display = 'block';
 
     currentCamIndex = 0;
     startCamera(cameras[currentCamIndex].deviceId);
