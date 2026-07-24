@@ -1,40 +1,98 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>Scanner de Code-Barres</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecteur Universel de Code-Barres</title>
+    <!-- Importation de la bibliothèque robuste html5-qrcode -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h2 {
+            color: #333;
+        }
+        #reader {
+            width: 100%;
+            max-width: 500px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            background: #fff;
+        }
+        #result-container {
+            margin-top: 20px;
+            padding: 15px;
+            width: 100%;
+            max-width: 500px;
+            background: #fff;
+            border-left: 5px solid #28a745;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            word-break: break-all;
+        }
+        .success-text {
+            font-weight: bold;
+            color: #28a745;
+            font-size: 1.2em;
+        }
+    </style>
 </head>
 <body>
-  <h2>Scanner un produit</h2>
-  <div id="scanner-container"></div>
-  <p id="result">Résultat : aucun</p>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
-  <script>
-    Quagga.init({
-      inputStream: {
-        name: "Live",
-        type: "LiveStream",
-        target: document.querySelector('#scanner-container'),
-      },
-      decoder: {
-        readers: ["ean_reader"] // "ean_reader" pour les codes-barres de produits alimentaires
-      }
-    }, function(err) {
-      if (err) {
-        console.log(err);
-        return;
-      }
-      console.log("Scanner prêt !");
-      Quagga.start();
-    });
+    <h2>Lecteur de Code-Barres Universel</h2>
+    
+    <!-- Conteneur vidéo requis par la bibliothèque -->
+    <div id="reader"></div>
 
-    Quagga.onDetected(function(result) {
-      const code = result.codeResult.code;
-      document.getElementById('result').textContent = "Code-barres détecté : " + code;
-      console.log("Code détecté :", code);
-      Quagga.stop();
-    });
-  </script>
+    <!-- Zone d'affichage du résultat -->
+    <div id="result-container">
+        <p>Statut : <span id="status" style="color: #666;">En attente de scan...</span></p>
+        <p>Code détecté : <span id="result" class="success-text">Aucun</span></p>
+    </div>
+
+    <script>
+        function onScanSuccess(decodedText, decodedResult) {
+            // Empêche les actions multiples trop rapides ou affiche le résultat en direct
+            document.getElementById('result').innerText = decodedText;
+            document.getElementById('status').innerText = "Succès du scan !";
+            document.getElementById('status').style.color = "#28a745";
+            
+            // Exemple : Vous pouvez déclencher un son, vibrer ou envoyer vers une base de données ici
+            if (navigator.vibrate) {
+                navigator.vibrate(200); // Vibration de confirmation sur mobile
+            }
+            
+            console.log(`Code scanned = ${decodedText}`, decodedResult);
+        }
+
+        function onScanFailure(error) {
+            // Les erreurs de scan par image (frame vide ou floue) arrivent en continu, 
+            // on les ignore pour ne pas saturer la console, sauf si l'on veut debugger.
+        }
+
+        // Configuration du lecteur pour démarrer automatiquement sur la caméra arrière (environment) des mobiles
+        let config = {
+            fps: 10, // Images par seconde traitées
+            qrbox: { width: 250, height: 150 }, // Zone de visée rectangulaire idéale pour les codes-barres 1D/2D
+            aspectRatio: 1.777778
+        };
+
+        // Initialisation du scanner intégré avec interface prête à l'emploi
+        let html5QrCodeScanner = new Html5QrcodeScanner(
+            "reader", 
+            config, 
+            /* verbose= */ false
+        );
+        
+        html5QrCodeScanner.render(onScanSuccess, onScanFailure);
+    </script>
+
 </body>
 </html>
