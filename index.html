@@ -238,8 +238,18 @@ async function pickBackCameraId_(reader){
   }
 }
 
+// IMPORTANT : on n'utilise PAS codeReader.decodeFromConstraints/decodeContinuously.
+// Cette méthode interne de @zxing/library arrête sa boucle de scan dès qu'une
+// erreur autre que "code non trouvé" survient sur une frame (bug connu de la
+// lib) — la vidéo continue de s'afficher mais plus aucun scan n'est tenté.
+// On gère donc le flux caméra nous-mêmes et on appelle decode() frame par
+// frame, en avalant systématiquement toutes les erreurs pour que la boucle
+// ne s'arrête jamais tant que l'onglet est actif.
+let scanStream = null;
+let scanTimer = null;
+
 async function startScanner(target){
-  if(currentScannerTarget === target && codeReader) return;
+  if(currentScannerTarget === target && scanStream) return;
   await stopScanner();
   currentScannerTarget = target;
   const videoEl = document.getElementById('video-' + target);
@@ -247,25 +257,44 @@ async function startScanner(target){
 
   try{
     const deviceId = await pickBackCameraId_(codeReader);
-    // Résolution + mise au point explicites : un flux par défaut (souvent
-    // 640x480, focus fixe) est trop imprécis pour décoder un code-barre 1D.
+    // Résolution explicite : un flux par défaut (souvent 640x480) est trop
+    // imprécis pour décoder un code-barre 1D à distance normale.
     const videoConstraints = deviceId
-      ? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] }
-      : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, advanced: [{ focusMode: 'continuous' }] };
+      ? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } };
 
-    await codeReader.decodeFromConstraints({ video: videoConstraints, audio: false }, videoEl, (result, err) => {
-      if(result) onScanSuccess(result.getText());
-      // les erreurs "NotFoundException" sont normales (aucun code détecté sur la frame), on les ignore
-    });
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
+    videoEl.srcObject = scanStream;
+    await videoEl.play().catch(()=>{}); // certains navigateurs rejettent play() avant l'événement loadedmetadata, sans gravité
+
+    scanLoop_(videoEl, target);
   }catch(err){
     console.error("Erreur lancement caméra :", err);
     toast("Impossible d'accéder à la caméra.", true);
   }
 }
 
+function scanLoop_(videoEl, target){
+  // La cible a changé / le scanner a été arrêté entre-temps : on arrête la boucle.
+  if(currentScannerTarget !== target) return;
+
+  if(videoEl.readyState >= 2 && videoEl.videoWidth > 0){
+    try{
+      const result = codeReader.decode(videoEl);
+      if(result) onScanSuccess(result.getText());
+    }catch(e){
+      // Toute erreur (code non trouvé, checksum, ou autre) est ignorée ici :
+      // c'est précisément ce que la lib ne fait pas correctement elle-même.
+    }
+  }
+  scanTimer = setTimeout(() => scanLoop_(videoEl, target), 200);
+}
+
 async function stopScanner(){
-  if(codeReader){
-    try{ codeReader.reset(); }catch(e){}
+  if(scanTimer){ clearTimeout(scanTimer); scanTimer = null; }
+  if(scanStream){
+    scanStream.getTracks().forEach(t => t.stop());
+    scanStream = null;
   }
   currentScannerTarget = null;
 }
