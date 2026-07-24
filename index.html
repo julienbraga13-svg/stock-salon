@@ -3,71 +3,81 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>Scanner de codes-barres</title>
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<title>Scanner de codes-barres Pro</title>
+<!-- Remplacement par ZXing, beaucoup plus bas niveau et robuste -->
+<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; margin: 0; background:#0b0d10; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  html, body { height: 100%; margin: 0; background:#0b0d10; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
   .app { display:flex; flex-direction:column; height:100dvh; overflow:hidden; }
 
-  /* --- Zone caméra (1/3 haut) --- */
-  #scan-zone { flex:0 0 33.333dvh; height:33.333dvh; position:relative; background:#000; overflow:hidden; }
-  #reader { width:100%; height:100%; position:relative; }
+  /* --- Zone caméra --- */
+  #scan-zone { flex:0 0 35dvh; position:relative; background:#000; overflow:hidden; }
   
-  #reader video {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover !important;
+  /* Balise vidéo native entièrement contrôlée par nous */
+  #video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
 
   #frame-overlay {
-    position:absolute; inset:12px; border:3px solid rgba(255,255,255,.55);
-    border-radius:14px; pointer-events:none; transition: border-color .15s, box-shadow .15s;
+    position:absolute; inset:15px; border:2px solid rgba(255,255,255,0.4);
+    border-radius:12px; pointer-events:none; transition: all 0.2s;
     z-index: 5;
+    /* Ligne de visée rouge style laser */
+    display: flex; align-items: center; justify-content: center;
   }
-  #frame-overlay.ok { border-color:#22c55e; box-shadow:0 0 22px rgba(34,197,94,.75); }
+  #frame-overlay::after {
+    content: ''; width: 80%; height: 2px; background: rgba(239, 68, 68, 0.6);
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
+  }
+  #frame-overlay.ok { border-color:#22c55e; background: rgba(34, 197, 94, 0.1); }
+  #frame-overlay.ok::after { background: transparent; box-shadow: none; }
+
   #start-overlay {
     position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:10px; background:#0b0d10; color:#e8e8e8; text-align:center; padding:12px; z-index: 10;
+    background:#0b0d10; z-index: 10; padding:20px; text-align:center;
   }
   #start-overlay button {
-    background:#22c55e; color:#06240f; border:none; border-radius:10px; padding:12px 22px;
-    font-size:16px; font-weight:600; cursor:pointer;
+    background:#3b82f6; color:#fff; border:none; border-radius:10px; padding:14px 24px;
+    font-size:16px; font-weight:600; cursor:pointer; margin-top: 15px;
   }
-  #err-msg { color:#f87171; font-size:13px; max-width:90%; }
-  #scan-zone .badge {
-    position:absolute; top:8px; right:8px; background:rgba(0,0,0,.5); color:#fff;
-    font-size:11px; padding:4px 8px; border-radius:8px; z-index:6;
-  }
+  #err-msg { color:#f87171; font-size:13px; margin-top:15px; max-width:90%; }
+  
+  .badge { position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.6); color:#fff; font-size:11px; padding:4px 8px; border-radius:6px; z-index:6; }
 
-  /* --- Historique (2/3 bas) --- */
+  /* --- Historique --- */
   #history-header {
     flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
-    padding:10px 14px; background:#14171c; color:#e8e8e8; border-top:1px solid #23262c;
+    padding:12px 16px; background:#14171c; color:#e8e8e8; border-top:1px solid #23262c;
   }
   #history-header h1 { font-size:14px; margin:0; font-weight:600; }
-  #clear-btn { background:none; border:1px solid #3a3f47; color:#aab0bb; border-radius:8px; padding:6px 10px; font-size:12px; }
-  #history { flex:1 1 auto; overflow-y:auto; background:#0f1115; padding:10px; }
+  #clear-btn { background:none; border:1px solid #3a3f47; color:#aab0bb; border-radius:6px; padding:6px 12px; font-size:12px; }
+  #history { flex:1 1 auto; overflow-y:auto; background:#0f1115; padding:12px; }
   .item {
-    background:#181b21; border:1px solid #23262c; border-radius:12px; padding:10px 12px; margin-bottom:8px;
-    display:flex; align-items:center; justify-content:space-between; gap:10px; animation:in .25s ease;
+    background:#181b21; border:1px solid #23262c; border-radius:10px; padding:12px; margin-bottom:10px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px; animation:in .2s ease;
   }
-  @keyframes in { from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
-  .item .code { font-family: "SFMono-Regular", Consolas, Menlo, monospace; color:#f5f5f5; font-size:15px; word-break:break-all; }
-  .item .meta { color:#8b93a1; font-size:11px; margin-top:2px; }
-  .item .fmt { background:#1f3d2b; color:#4ade80; font-size:10px; padding:2px 7px; border-radius:6px; white-space:nowrap; }
-  #empty { color:#5b6270; font-size:13px; text-align:center; padding:24px 10px; }
+  @keyframes in { from{opacity:0; transform:translateY(5px);} to{opacity:1; transform:none;} }
+  .item .code { font-family: monospace; color:#fff; font-size:16px; font-weight:bold; word-break:break-all; }
+  .item .meta { color:#8b93a1; font-size:11px; margin-top:4px; }
+  .item .fmt { background:#1e293b; color:#94a3b8; font-size:10px; padding:3px 8px; border-radius:4px; }
+  #empty { color:#5b6270; font-size:13px; text-align:center; padding:30px 10px; }
 </style>
 </head>
 <body>
 <div class="app">
   <div id="scan-zone">
-    <div id="reader"></div>
+    <!-- playsinline est OBLIGATOIRE sur iOS pour éviter que la vidéo passe en plein écran et bloque le scan -->
+    <video id="video" autoplay muted playsinline></video>
     <div id="frame-overlay"></div>
     <div class="badge" id="count-badge">0 scan</div>
+    
     <div id="start-overlay">
-      <div style="font-size:15px;">Scanner de codes-barres</div>
-      <button id="start-btn">▶ Démarrer la caméra</button>
+      <div style="color:#e8e8e8; font-size:16px; font-weight:600;">Prêt à scanner</div>
+      <button id="start-btn">Activer la caméra</button>
       <div id="err-msg"></div>
     </div>
   </div>
@@ -77,7 +87,7 @@
     <button id="clear-btn">Effacer</button>
   </div>
   <div id="history">
-    <div id="empty">Aucun code scanné pour l'instant</div>
+    <div id="empty">En attente de scan...</div>
   </div>
 </div>
 
@@ -88,123 +98,137 @@ const errMsg = document.getElementById('err-msg');
 const frame = document.getElementById('frame-overlay');
 const historyEl = document.getElementById('history');
 const emptyEl = document.getElementById('empty');
-const clearBtn = document.getElementById('clear-btn');
 const countBadge = document.getElementById('count-badge');
 
 let scanCount = 0;
 let audioCtx = null;
+let codeReader = null;
+let lastScannedCode = null;
+let lastScanTime = 0;
 
+// Bip sonore robuste
 function beep() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
-    o.type = 'sine';
-    o.frequency.value = 880;
-    g.gain.value = 0.15;
+    o.type = 'sine'; o.frequency.value = 900; g.gain.value = 0.1;
     o.connect(g); g.connect(audioCtx.destination);
-    o.start();
-    o.stop(audioCtx.currentTime + 0.15);
+    o.start(); o.stop(audioCtx.currentTime + 0.1);
   } catch (e) {}
 }
 
-function flashGreen() {
+function flashSuccess() {
   frame.classList.add('ok');
-  setTimeout(() => frame.classList.remove('ok'), 500);
+  setTimeout(() => frame.classList.remove('ok'), 400);
 }
 
 function addToHistory(text, format) {
   scanCount++;
   countBadge.textContent = scanCount + ' scan' + (scanCount > 1 ? 's' : '');
   emptyEl.style.display = 'none';
+  
   const item = document.createElement('div');
   item.className = 'item';
-  const now = new Date().toLocaleTimeString('fr-FR');
+  const time = new Date().toLocaleTimeString('fr-FR');
+  
   item.innerHTML = `
     <div>
-      <div class="code">${text.replace(/</g,'&lt;')}</div>
-      <div class="meta">${now}</div>
+      <div class="code">${text}</div>
+      <div class="meta">${time}</div>
     </div>
-    <div class="fmt">${format || ''}</div>`;
+    <div class="fmt">${format}</div>`;
+  
   historyEl.prepend(item);
 }
 
-clearBtn.addEventListener('click', () => {
+document.getElementById('clear-btn').addEventListener('click', () => {
   historyEl.innerHTML = '';
   historyEl.appendChild(emptyEl);
   emptyEl.style.display = 'block';
   scanCount = 0;
   countBadge.textContent = '0 scan';
+  lastScannedCode = null;
 });
 
-const formats = [
-  Html5QrcodeSupportedFormats.QR_CODE,
-  Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.EAN_8,
-  Html5QrcodeSupportedFormats.UPC_A,
-  Html5QrcodeSupportedFormats.UPC_E,
-  Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.CODE_39
-];
-
-let html5Qr = null;
-
 async function startScanner() {
-  errMsg.textContent = '';
+  errMsg.textContent = "Initialisation...";
   
   try {
-    if (html5Qr) {
-      try { await html5Qr.stop(); } catch(e) {}
-    }
+    // Initialisation de ZXing
+    codeReader = new ZXing.BrowserMultiFormatReader();
     
-    html5Qr = new Html5Qrcode('reader', { formatsToSupport: formats, verbose: false });
-    
-    // Configuration neutre sans forçage de contraintes complexes pour garantir l'affichage du viseur sur Android et iOS
-    const config = {
-      fps: 10,
-      aspectRatio: 1.0
+    // Contraintes strictes pour forcer la caméra arrière
+    const constraints = {
+      video: { 
+        facingMode: { exact: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
     };
-
-    const onSuccess = (decodedText, result) => {
-      const fmt = result?.result?.format?.formatName || result?.format?.formatName || 'CODE';
-      beep();
-      flashGreen();
-      addToHistory(decodedText, fmt);
-    };
-    
-    const onFailure = () => {};
-
-    await html5Qr.start(
-      { facingMode: "environment" },
-      config,
-      onSuccess,
-      onFailure
-    );
 
     startOverlay.style.display = 'none';
 
-    // Astuce spécifique iOS : Ajustement dynamique de la netteté/focus une fois le flux démarré
-    setTimeout(async () => {
-      try {
-        const capabilities = html5Qr.getRunningTrackCapabilities();
-        if (capabilities && capabilities.focusDistance) {
-          await html5Qr.applyVideoConstraints({
-            advanced: [{ focusDistance: 0 }] // Force un focus net sur les éléments proches (codes-barres)
-          });
+    // Lancement de la lecture continue
+    codeReader.decodeFromConstraints(constraints, 'video', (result, err) => {
+      if (result) {
+        const text = result.getText();
+        const format = result.getBarcodeFormat();
+        const now = Date.now();
+        
+        // Anti-doublon : évite de scanner le même code en boucle à moins de 2 secondes d'intervalle
+        if (text !== lastScannedCode || (now - lastScanTime) > 2000) {
+          lastScannedCode = text;
+          lastScanTime = now;
+          
+          beep();
+          flashSuccess();
+          
+          // ZXing retourne un entier pour le format, on essaie de le traduire
+          const formatName = ZXing.BarcodeFormat[format] || 'CODE';
+          addToHistory(text, formatName);
         }
-      } catch (err) {
-        // Ignorer si non supporté par le modèle d'iPhone
       }
-    }, 800);
+      
+      // Les erreurs sont normales ici (ex: aucun code trouvé dans la frame actuelle)
+      // On ne les log pas pour ne pas spammer la console
+    });
 
   } catch (err) {
     console.error(err);
-    errMsg.textContent = "Erreur caméra : " + (err.message || err) + ". Vérifiez les permissions HTTPS.";
+    startOverlay.style.display = 'flex';
+    // Fallback si "exact: environment" bloque (parfois le cas sur d'anciens appareils)
+    if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
+       errMsg.textContent = "Tentative avec la caméra par défaut...";
+       fallbackStart();
+    } else {
+       errMsg.textContent = "Erreur caméra. HTTPS est-il actif ?";
+    }
   }
 }
 
+function fallbackStart() {
+  codeReader.decodeFromConstraints({ video: { facingMode: "environment" } }, 'video', (result, err) => {
+      if (result) {
+        const text = result.getText();
+        if (text !== lastScannedCode || (Date.now() - lastScanTime) > 2000) {
+          lastScannedCode = text;
+          lastScanTime = Date.now();
+          beep(); flashSuccess();
+          addToHistory(text, ZXing.BarcodeFormat[result.getBarcodeFormat()] || 'CODE');
+        }
+      }
+  }).catch(e => {
+    errMsg.textContent = "Impossible d'accéder à la caméra.";
+  });
+}
+
 startBtn.addEventListener('click', () => {
-  if (audioCtx) audioCtx.resume().catch(()=>{});
+  // Débloque l'audio sur iOS
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  else beep(); // Init silencieux
+  
   startScanner();
 });
 </script>
