@@ -192,20 +192,16 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
 </div>
 
 <script>
-// ⚠️ INSÉREZ VOTRE URL GOOGLE APPS SCRIPT CI-DESSOUS (remplacez le lien entre les guillemets)
-const API_URL = "https://script.google.com/macros/s/AKfycbz4i0ApoZesOOI3yMVUZz_j2JQ__nI2Qeh1Qa1Mf5W5ri0_Z-Bebf1V5Z3d6ntm0Y16/exec";
+const API_URL = "VOTRE_URL_GOOGLE_APPS_SCRIPT_ICI";
 
-// ================== SCANNER (ZXing) ==================
-// ZXing énumère les vraies caméras du téléphone (getUserMedia/enumerateDevices)
-// au lieu de se fier à facingMode:"environment", qui est mal supporté sur
-// beaucoup de marques Android (Xiaomi, Huawei, Samsung anciens, etc.).
-// Cela évite les écrans noirs et les échecs de lancement caméra.
 let codeReader = null;
-let currentScannerTarget = null; // 'sortie' | 'reception'
+let currentScannerTarget = null;
 let lastCode = null, lastTime = 0;
 let scanMode = 'sortie';
 let sessionSortie = {}, sessionReception = {}, stockCache = [], pendingBarcode = null;
-let scanLock = false; // évite les doubles envois pendant l'appel réseau
+let scanLock = false;
+let scanStream = null;
+let scanTimer = null;
 
 function getScanHints_(){
   const hints = new Map();
@@ -221,12 +217,6 @@ function getScanHints_(){
   return hints;
 }
 
-// Choisit la meilleure caméra arrière disponible en inspectant les labels
-// réels des périphériques (plus fiable que facingMode sur Android).
-// NB: listVideoInputDevices() est une méthode d'INSTANCE dans @zxing/library,
-// pas une méthode statique — d'où le bug précédent (échec silencieux, la
-// caméra démarrait alors en fallback basse résolution, insuffisant pour lire
-// un code-barre net).
 async function pickBackCameraId_(reader){
   try{
     const devices = await reader.listVideoInputDevices();
@@ -234,19 +224,9 @@ async function pickBackCameraId_(reader){
     const back = devices.find(d => /back|rear|environment|arrière/i.test(d.label));
     return (back || devices[devices.length - 1]).deviceId;
   }catch(e){
-    return undefined; // laisse le navigateur choisir par défaut
+    return undefined;
   }
 }
-
-// IMPORTANT : on n'utilise PAS codeReader.decodeFromConstraints/decodeContinuously.
-// Cette méthode interne de @zxing/library arrête sa boucle de scan dès qu'une
-// erreur autre que "code non trouvé" survient sur une frame (bug connu de la
-// lib) — la vidéo continue de s'afficher mais plus aucun scan n'est tenté.
-// On gère donc le flux caméra nous-mêmes et on appelle decode() frame par
-// frame, en avalant systématiquement toutes les erreurs pour que la boucle
-// ne s'arrête jamais tant que l'onglet est actif.
-let scanStream = null;
-let scanTimer = null;
 
 async function startScanner(target){
   if(currentScannerTarget === target && scanStream) return;
@@ -257,15 +237,13 @@ async function startScanner(target){
 
   try{
     const deviceId = await pickBackCameraId_(codeReader);
-    // Résolution explicite : un flux par défaut (souvent 640x480) est trop
-    // imprécis pour décoder un code-barre 1D à distance normale.
     const videoConstraints = deviceId
       ? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
       : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } };
 
     scanStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
     videoEl.srcObject = scanStream;
-    await videoEl.play().catch(()=>{}); // certains navigateurs rejettent play() avant l'événement loadedmetadata, sans gravité
+    await videoEl.play().catch(()=>{});
 
     scanLoop_(videoEl, target);
   }catch(err){
@@ -275,17 +253,13 @@ async function startScanner(target){
 }
 
 function scanLoop_(videoEl, target){
-  // La cible a changé / le scanner a été arrêté entre-temps : on arrête la boucle.
   if(currentScannerTarget !== target) return;
 
   if(videoEl.readyState >= 2 && videoEl.videoWidth > 0){
     try{
       const result = codeReader.decode(videoEl);
       if(result) onScanSuccess(result.getText());
-    }catch(e){
-      // Toute erreur (code non trouvé, checksum, ou autre) est ignorée ici :
-      // c'est précisément ce que la lib ne fait pas correctement elle-même.
-    }
+    }catch(e){}
   }
   scanTimer = setTimeout(() => scanLoop_(videoEl, target), 200);
 }
@@ -298,9 +272,7 @@ async function stopScanner(){
   }
   currentScannerTarget = null;
 }
-// =======================================================
 
-// APPEL API DISTANT (Google Apps Script)
 async function callAPI(action, payload = {}, method = 'POST') {
   try {
     let url = API_URL;
@@ -310,7 +282,6 @@ async function callAPI(action, payload = {}, method = 'POST') {
       url += `?action=${encodeURIComponent(action)}&` + new URLSearchParams(payload).toString();
     } else {
       options.body = JSON.stringify({ action, ...payload });
-      // text/plain évite le pre-flight CORS avec Apps Script
       options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
     }
 
@@ -365,7 +336,7 @@ function manualSubmit(mode){
 }
 
 function handleBarcode(code){
-  if(scanLock) return; // évite un double-scan pendant que la requête précédente est en cours
+  if(scanLock) return;
   if(navigator.vibrate) navigator.vibrate(70);
   beep();
   if(scanMode === 'sortie') processSortie(code);
@@ -411,8 +382,6 @@ function renderSession(mode){
   });
 }
 
-// Reconstruit la liste (Sortie/Réception) à partir de l'historique persisté
-// côté Google Sheet, pour qu'elle survive à un rafraîchissement de page.
 function loadSessionFromHistory(mode){
   const type = mode === 'sortie' ? 'Sortie' : 'Entrée';
   const today = new Date();
@@ -447,7 +416,6 @@ function beep(){
   }catch(e){}
 }
 
-// GESTION DU STOCK
 function loadStock(){
   const el = document.getElementById('stock-list');
   el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
@@ -534,7 +502,6 @@ function deleteRow(barcode){
   });
 }
 
-// CREATION MODAL
 function openCreateModal(barcode){
   document.getElementById('m-barcode').value = barcode || '';
   document.getElementById('m-nom').value='';
@@ -548,22 +515,10 @@ function openCreateModal(barcode){
   ['m-barcode','m-nom','m-categorie','m-contenance','m-prix','m-seuil','m-qtecommande','m-quantite']
     .forEach(id => document.getElementById(id).classList.remove('invalid'));
   document.getElementById('modal-bg').classList.add('show');
-  // focus intelligent : le nom si le code-barre est déjà connu (scan), sinon le code-barre
   setTimeout(() => document.getElementById(barcode ? 'm-nom' : 'm-barcode').focus(), 50);
 }
 
 function closeModal(){ document.getElementById('modal-bg').classList.remove('show'); pendingBarcode=null; }
-
-document.addEventListener('keydown', (e) => {
-  const openModal = document.querySelector('.modal-bg.show');
-  if(!openModal) return;
-  if(e.key === 'Escape'){ openModal.id === 'buyer-modal-bg' ? closeBuyerModal() : closeModal(); }
-  if(e.key === 'Enter' && document.activeElement.tagName === 'INPUT'){
-    e.preventDefault();
-    const fn = openModal.dataset.submit;
-    if(fn && typeof window[fn] === 'function') window[fn]();
-  }
-});
 
 function submitCreate(){
   const btn = document.getElementById('submit-create-btn');
@@ -602,7 +557,6 @@ function submitCreate(){
   });
 }
 
-// COORDONNÉES ACHETEUR (persistées côté serveur, réutilisées à chaque commande)
 function openBuyerModal(){
   callAPI('getBuyerInfo', {}, 'GET').then(info => {
     info = info || {};
@@ -632,7 +586,6 @@ function saveBuyerInfo(){
   });
 }
 
-// COMMANDES FOURNISSEUR
 function loadEmail(){
   callAPI('getSupplierEmail', {}, 'GET').then(res => {
     document.getElementById('supplier-email').value = res.email || '';
@@ -692,33 +645,44 @@ function calculateOrderTotal(){
 
 function sendOrderNow(){
   const email = document.getElementById('supplier-email').value.trim();
-  if(!email){ toast('Adresse e-mail requise', true); return; }
+  if(!email){
+    toast("Veuillez indiquer l'e-mail du fournisseur", true);
+    document.getElementById('supplier-email').focus();
+    return;
+  }
 
   const items = [];
-  document.querySelectorAll('.order-line').forEach(line=>{
-    const qteCommande = Number(line.querySelector('.order-qty').value) || 0;
-    if(qteCommande > 0){
+  document.querySelectorAll('.order-line').forEach(line => {
+    const qte = Number(line.querySelector('.order-qty').value) || 0;
+    if(qte > 0){
       items.push({
         barcode: line.dataset.barcode,
         nom: line.dataset.nom,
         contenance: line.dataset.contenance,
         prix: Number(line.dataset.prix) || 0,
-        qteCommande: qteCommande
+        quantite: qte
       });
     }
   });
 
-  if(items.length === 0){ toast('Aucun article sélectionné', true); return; }
+  if(items.length === 0){
+    toast("La commande est vide", true);
+    return;
+  }
 
   const btn = document.getElementById('send-order-btn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>Envoi...';
-  toast('Génération du PDF et envoi...');
-  callAPI('sendOrder', { items, email }).then(res => {
+  btn.innerHTML = '<span class="spinner"></span>Envoi en cours...';
+
+  callAPI('sendOrder', { email, items }).then(res => {
     btn.disabled = false;
     btn.innerHTML = '📄 Générer PDF et envoyer';
-    if(res.ok){ toast('Commande n°'+res.orderNumber+' envoyée ✓'); }
-    else { toast('Erreur lors de l\'envoi', true); }
+    if(res.ok){
+      toast("Commande envoyée ✓");
+      loadSuggestion(); 
+    } else {
+      toast(res.error || "Erreur lors de l'envoi", true);
+    }
   });
 }
 </script>
