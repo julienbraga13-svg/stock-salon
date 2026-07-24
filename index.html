@@ -1,210 +1,45 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-<base target="_top">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Stock Salon</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Scanner Codes-Barres</title>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <style>
-:root{--bg:#f6f7f8;--card:#fff;--accent:#0f766e;--text:#111827;--muted:#6b7280;--green:#22c55e;--orange:#f59e0b;--red:#ef4444;--border:#e5e7eb}
-*{box-sizing:border-box}
-body{margin:0;font-family:-apple-system,system-ui,Roboto,sans-serif;background:var(--bg);color:var(--text);padding-bottom:calc(70px + env(safe-area-inset-bottom))}
-header{background:var(--card);padding:14px 16px;font-weight:700;font-size:18px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
-.tab{display:none;padding:14px}
-.tab.active{display:block}
-.scanner-box{background:#000;border-radius:16px;overflow:hidden;position:relative;min-height:220px;margin-bottom:14px;cursor:pointer}
-#video-sortie, #video-reception{width:100%;height:220px;object-fit:cover;display:block;background:#000;border-radius:16px}
-.manual{display:flex;gap:8px;margin-bottom:14px}
-.manual input{flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);font-size:15px}
-button{cursor:pointer;border:none;font-weight:600;font-family:inherit}
-button:disabled{opacity:.5;cursor:not-allowed}
-.btn{background:var(--accent);color:#fff;padding:12px 16px;border-radius:10px;font-size:15px}
-.btn.secondary{background:#e5e7eb;color:var(--text)}
-.session{background:var(--card);border-radius:12px;border:1px solid var(--border)}
-.session li{list-style:none;display:flex;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border)}
-.session li:last-child{border:none}
-.qte-badge{background:var(--accent);color:#fff;border-radius:20px;padding:2px 10px;font-size:13px}
-.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;transition:.25s;z-index:50;max-width:90%;text-align:center}
-.toast.show{opacity:1}
-.toast.error{background:var(--red)}
-.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px}
-.card-top{display:flex;align-items:center;gap:10px;justify-content:space-between;cursor:pointer}
-.dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
-.dot.green{background:var(--green)} .dot.orange{background:var(--orange)} .dot.red{background:var(--red)}
-.pname{font-weight:600;font-size:15px}
-.psub{color:var(--muted);font-size:13px}
-.edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
-.edit-grid label{font-size:12px;color:var(--muted);display:block;margin-bottom:3px}
-.edit-grid input{width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:14px}
-.searchbar{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);margin-bottom:12px;font-size:15px}
-.fab{position:fixed;right:16px;bottom:calc(80px + env(safe-area-inset-bottom));background:var(--accent);color:#fff;width:52px;height:52px;border-radius:50%;font-size:26px;box-shadow:0 4px 10px rgba(0,0,0,.2);z-index:10}
-nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);display:flex;gap:6px;padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:20}
-.nav-btn{flex:1;background:none;padding:8px 2px;text-align:center;color:var(--muted);font-size:12px;border-radius:12px;transition:background .15s,color .15s,transform .15s}
-.nav-btn.active{background:var(--accent);color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(15,118,110,.35)}
-.nav-btn div{font-size:20px;transition:transform .15s}
-.nav-btn.active div{transform:translateY(-1px)}
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60;align-items:flex-end}
-.modal-bg.show{display:flex}
-.modal{background:#fff;width:100%;border-radius:16px 16px 0 0;padding:0;max-height:88vh;overflow:auto;animation:slideup .2s ease-out}
-@keyframes slideup{from{transform:translateY(16px);opacity:.6}to{transform:translateY(0);opacity:1}}
-.modal-head{position:sticky;top:0;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;border-bottom:1px solid var(--border);z-index:1}
-.modal-head h3{margin:0;font-size:17px}
-.modal-close{background:#f3f4f6;color:var(--muted);width:30px;height:30px;border-radius:50%;font-size:15px;line-height:1}
-.modal-body{padding:16px 20px 20px}
-.field{margin-bottom:12px}
-.field label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
-.field label .req{color:var(--red)}
-.field input{width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);font-size:15px;transition:border-color .15s}
-.field input:focus{outline:none;border-color:var(--accent)}
-.field input.invalid{border-color:var(--red)}
-.field .hint{font-size:11.5px;color:var(--muted);margin-top:4px}
-.field-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.field-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.scan-hint{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--accent);background:#f0fdfa;border:1px solid #ccfbf1;border-radius:8px;padding:6px 10px;margin-bottom:14px}
-.row-actions{display:flex;gap:8px;margin-top:14px}
-.order-line{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px}
-.order-line .info{flex:1}
-.order-line input{width:65px;padding:6px;border-radius:6px;border:1px solid var(--border);text-align:center;font-size:14px}
-.total{font-weight:700;font-size:16px;margin:14px 0}
-.spinner{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;vertical-align:-2px;margin-right:6px}
-@keyframes spin{to{transform:rotate(360deg)}}
-.skeleton{background:linear-gradient(90deg,#eee 25%,#f5f5f5 50%,#eee 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:8px;height:56px;margin-bottom:10px}
-@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-#scan-status{position:absolute;top:0;left:0;right:0;text-align:center;padding:6px;font-size:12px;color:#0f0;background:rgba(0,0,0,.5);z-index:2}
+  html,body{margin:0;height:100%;font-family:-apple-system,system-ui,Roboto,sans-serif;background:#111;color:#fff;overflow:hidden}
+  #top{height:33vh;position:relative;background:#000;overflow:hidden}
+  #video{width:100%;height:100%;object-fit:cover;display:block;background:#000}
+  #status{position:absolute;top:0;left:0;right:0;text-align:center;padding:6px;font-size:12px;color:#0f0;background:rgba(0,0,0,.5);z-index:2}
+  #last{position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:18px;font-weight:bold;padding:8px;background:rgba(0,0,0,.6);word-break:break-all;z-index:2}
+  #bottom{height:67vh;overflow-y:auto;padding:0 10px;box-sizing:border-box}
+  #histHeader{display:flex;justify-content:space-between;align-items:center;padding:10px 0;position:sticky;top:0;background:#111}
+  #histHeader h3{margin:0;font-size:16px}
+  #clearBtn{background:#a00;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:13px}
+  .item{border-bottom:1px solid #333;padding:8px 0;display:flex;justify-content:space-between;font-size:14px}
+  .item span:last-child{color:#888}
 </style>
 </head>
 <body>
-
-<header>💈 Stock Salon</header>
-
-<!-- ONGLET SORTIE -->
-<div class="tab active" id="tab-sortie">
-  <div class="scanner-box" onclick="startScanner('sortie')" title="Toucher pour relancer la caméra">
-    <div class="scan-status" id="status-sortie">Initialisation caméra…</div>
-    <video id="video-sortie" muted autoplay playsinline></video>
-  </div>
-  <div class="manual">
-    <input id="manual-sortie" placeholder="Code-barre manuel" inputmode="numeric">
-    <button class="btn" onclick="manualSubmit('sortie')">Valider</button>
-  </div>
-  <div class="session"><ul id="list-sortie"></ul></div>
+<div id="top">
+  <div id="status">Initialisation caméra…</div>
+  <video id="video" muted autoplay playsinline></video>
+  <div id="last">En attente…</div>
 </div>
-
-<!-- ONGLET STOCK -->
-<div class="tab" id="tab-stock">
-  <input class="searchbar" id="search" placeholder="Rechercher un produit..." oninput="renderStock()">
-  <div id="stock-list"></div>
-  <button class="fab" onclick="openCreateModal(null)">+</button>
-</div>
-
-<!-- ONGLET COMMANDES -->
-<div class="tab" id="tab-commande">
-  <div class="row-actions" style="margin-bottom:12px">
-    <button class="btn secondary" onclick="loadSuggestion()">🔄 Actualiser la suggestion</button>
-    <button class="btn secondary" onclick="openBuyerModal()">👤 Mes coordonnées</button>
+<div id="bottom">
+  <div id="histHeader">
+    <h3 id="count">Historique (0)</h3>
+    <button id="clearBtn">Effacer</button>
   </div>
-  <div id="order-list" style="margin-top:14px"></div>
-  <div class="total" id="order-total">Total : 0.00 €</div>
-  <div class="field">
-    <label>Adresse e-mail fournisseur</label>
-    <input id="supplier-email" type="email">
-  </div>
-  <div class="row-actions">
-    <button class="btn secondary" onclick="saveEmail()">Enregistrer l'adresse</button>
-    <button class="btn" id="send-order-btn" onclick="sendOrderNow()">📄 Générer PDF et envoyer</button>
-  </div>
-</div>
-
-<!-- ONGLET RECEPTION -->
-<div class="tab" id="tab-reception">
-  <div class="scanner-box" onclick="startScanner('reception')" title="Toucher pour relancer la caméra">
-    <div class="scan-status" id="status-reception">Initialisation caméra…</div>
-    <video id="video-reception" muted autoplay playsinline></video>
-  </div>
-  <div class="manual">
-    <input id="manual-reception" placeholder="Code-barre manuel" inputmode="numeric">
-    <button class="btn" onclick="manualSubmit('reception')">Valider</button>
-  </div>
-  <div class="session"><ul id="list-reception"></ul></div>
-</div>
-
-<!-- NAVIGATION -->
-<nav>
-  <button class="nav-btn active" id="nav-sortie" onclick="switchTab('sortie')"><div>📤</div>Sortie</button>
-  <button class="nav-btn" id="nav-stock" onclick="switchTab('stock')"><div>📦</div>Stock</button>
-  <button class="nav-btn" id="nav-commande" onclick="switchTab('commande')"><div>🧾</div>Commande</button>
-  <button class="nav-btn" id="nav-reception" onclick="switchTab('reception')"><div>📥</div>Réception</button>
-</nav>
-
-<div class="toast" id="toast"></div>
-
-<!-- MODAL CREATION PRODUIT -->
-<div class="modal-bg" id="modal-bg" data-submit="submitCreate" onmousedown="if(event.target===this) closeModal()">
-  <div class="modal">
-    <div class="modal-head">
-      <h3>Nouveau produit</h3>
-      <button class="modal-close" type="button" onclick="closeModal()" aria-label="Fermer">✕</button>
-    </div>
-    <div class="modal-body">
-      <div id="scan-hint" class="scan-hint" style="display:none">📷 Code-barre récupéré automatiquement, complétez la fiche</div>
-      <div class="field"><label>Code-barre <span class="req">*</span></label><input id="m-barcode" placeholder="Scanné ou saisi manuellement"></div>
-      <div class="field"><label>Nom <span class="req">*</span></label><input id="m-nom" placeholder="ex: Shampoing hydratant"></div>
-      <div class="field-grid-2">
-        <div class="field"><label>Catégorie</label><input id="m-categorie" placeholder="ex: Soin"></div>
-        <div class="field"><label>Contenance</label><input id="m-contenance" placeholder="ex: 250ml"></div>
-      </div>
-      <div class="field-grid-3">
-        <div class="field"><label>Prix (€)</label><input id="m-prix" type="number" step="0.01" min="0" placeholder="0.00"></div>
-        <div class="field"><label>Seuil alerte</label><input id="m-seuil" type="number" min="0" value="3"></div>
-        <div class="field"><label>Qté/commande</label><input id="m-qtecommande" type="number" min="1" value="5"></div>
-      </div>
-      <div class="field">
-        <label>Quantité initiale</label><input id="m-quantite" type="number" min="0" value="0">
-        <div class="hint">La quantité "Qté/commande" sera proposée par défaut dans l'onglet Commande quand ce produit passera sous son seuil.</div>
-      </div>
-      <div class="row-actions">
-        <button class="btn secondary" type="button" onclick="closeModal()">Annuler</button>
-        <button class="btn" id="submit-create-btn" onclick="submitCreate()">Créer la fiche</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL COORDONNÉES ACHETEUR -->
-<div class="modal-bg" id="buyer-modal-bg" data-submit="saveBuyerInfo" onmousedown="if(event.target===this) closeBuyerModal()">
-  <div class="modal">
-    <div class="modal-head">
-      <h3>Mes coordonnées acheteur</h3>
-      <button class="modal-close" type="button" onclick="closeBuyerModal()" aria-label="Fermer">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="hint" style="margin-bottom:12px">Ces informations apparaissent sur le PDF de commande et sont enregistrées : inutile de les ressaisir la prochaine fois.</div>
-      <div class="field"><label>Nom / Salon</label><input id="b-nom" placeholder="ex: Salon Belle Coiffure"></div>
-      <div class="field"><label>Adresse</label><input id="b-adresse" placeholder="12 rue des Fleurs, 75000 Paris"></div>
-      <div class="field-grid-2">
-        <div class="field"><label>Téléphone</label><input id="b-telephone" type="tel" placeholder="06 12 34 56 78"></div>
-        <div class="field"><label>Email</label><input id="b-email" type="email" placeholder="contact@salon.fr"></div>
-      </div>
-      <div class="row-actions">
-        <button class="btn secondary" type="button" onclick="closeBuyerModal()">Annuler</button>
-        <button class="btn" id="save-buyer-btn" onclick="saveBuyerInfo()">Enregistrer</button>
-      </div>
-    </div>
-  </div>
+  <div id="history"></div>
 </div>
 
 <script>
-const API_URL = "VOTRE_URL_GOOGLE_APPS_SCRIPT_ICI";
-
-/* ===== SCANNER (logique reprise à l'identique du scanner qui fonctionne) ===== */
 let codeReader = null;
 let scanStream = null;
 let scanTimer = null;
 let lastCode = null, lastTime = 0;
 const DELAY = 1000;
-let scanMode = 'sortie';
-let scanLock = false;
+let total = 0;
 
 function getScanHints_(){
   const hints = new Map();
@@ -231,11 +66,9 @@ async function pickBackCameraId_(reader){
   }
 }
 
-async function startScanner(target){
+async function startScanner(){
   await stopScanner();
-  scanMode = target;
-  const videoEl = document.getElementById('video-' + target);
-  const statusEl = document.getElementById('status-' + target);
+  const videoEl = document.getElementById('video');
   if(!codeReader) codeReader = new ZXing.BrowserMultiFormatReader(getScanHints_());
 
   try{
@@ -248,24 +81,22 @@ async function startScanner(target){
     videoEl.srcObject = scanStream;
     await videoEl.play().catch(()=>{});
 
-    if(statusEl) statusEl.textContent = "Caméra active — scannez un code";
-    scanLoop_(videoEl, target);
+    document.getElementById("status").textContent = "Caméra active — scannez un code";
+    scanLoop_(videoEl);
   }catch(err){
     console.error("Erreur lancement caméra :", err);
-    if(statusEl) statusEl.textContent = "Erreur caméra: " + err;
-    toast("Impossible d'accéder à la caméra.", true);
+    document.getElementById("status").textContent = "Erreur caméra: " + err;
   }
 }
 
-function scanLoop_(videoEl, target){
-  if(scanMode !== target || !scanStream) return;
+function scanLoop_(videoEl){
   if(videoEl.readyState >= 2 && videoEl.videoWidth > 0){
     try{
       const result = codeReader.decode(videoEl);
       if(result) onScanSuccess(result.getText());
     }catch(e){}
   }
-  scanTimer = setTimeout(() => scanLoop_(videoEl, target), 200);
+  scanTimer = setTimeout(() => scanLoop_(videoEl), 200);
 }
 
 async function stopScanner(){
@@ -283,7 +114,7 @@ function onScanSuccess(decodedText){
   lastTime = now;
   if(navigator.vibrate) navigator.vibrate(70);
   beep();
-  handleBarcode(decodedText);
+  onScan(decodedText);
 }
 
 function beep(){
@@ -295,400 +126,25 @@ function beep(){
     o.start(); o.stop(ctx.currentTime+0.08);
   }catch(e){}
 }
-/* ===== FIN SCANNER ===== */
 
-let sessionSortie = {}, sessionReception = {}, stockCache = [], pendingBarcode = null;
-
-async function callAPI(action, payload = {}, method = 'POST') {
-  try {
-    let url = API_URL;
-    let options = { method };
-
-    if (method === 'GET') {
-      url += `?action=${encodeURIComponent(action)}&` + new URLSearchParams(payload).toString();
-    } else {
-      options.body = JSON.stringify({ action, ...payload });
-      options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
-    }
-
-    const response = await fetch(url, options);
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    const data = await response.json();
-    if (data && data.ok === false && data.error) toast(data.error, true);
-    return data;
-  } catch (err) {
-    console.error("Erreur API:", err);
-    toast("Erreur de connexion serveur", true);
-    return { ok: false };
-  }
+function onScan(code){
+  document.getElementById("last").textContent = code;
+  const row = document.createElement("div");
+  row.className = "item";
+  const t = new Date().toLocaleTimeString();
+  row.innerHTML = `<span>${code}</span><span>${t}</span>`;
+  document.getElementById("history").prepend(row);
+  total++;
+  document.getElementById("count").textContent = `Historique (${total})`;
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-  startScanner('sortie');
-  loadSessionFromHistory('sortie');
-});
+document.getElementById("clearBtn").onclick = () => {
+  document.getElementById("history").innerHTML = "";
+  total = 0;
+  document.getElementById("count").textContent = "Historique (0)";
+};
 
-function switchTab(tab){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('tab-'+tab).classList.add('active');
-  document.getElementById('nav-'+tab).classList.add('active');
-
-  if(tab==='sortie'){ startScanner('sortie'); loadSessionFromHistory('sortie'); }
-  else if(tab==='reception'){ startScanner('reception'); loadSessionFromHistory('reception'); }
-  else stopScanner();
-
-  if(tab==='stock') loadStock();
-  if(tab==='commande') { loadEmail(); loadSuggestion(); }
-}
-
-function manualSubmit(mode){
-  const input = document.getElementById('manual-'+mode);
-  const code = input.value.trim();
-  if(!code) return;
-  input.value = '';
-  scanMode = mode;
-  handleBarcode(code);
-}
-
-function handleBarcode(code){
-  if(scanLock) return;
-  if(scanMode === 'sortie') processSortie(code);
-  else if(scanMode === 'reception') processReception(code);
-}
-
-function processSortie(code){
-  scanLock = true;
-  callAPI('changeStock', { barcode: code, delta: -1 }).then(res => {
-    scanLock = false;
-    if(!res.ok){ toast('Produit inconnu: '+code, true); return; }
-    const p = res.product;
-    sessionSortie[code] = sessionSortie[code] || {nom:p.nom, qte:0};
-    sessionSortie[code].qte++;
-    renderSession('sortie');
-    toast(p.nom+' — sortie enregistrée');
-  });
-}
-
-function processReception(code){
-  scanLock = true;
-  callAPI('changeStock', { barcode: code, delta: 1 }).then(res => {
-    scanLock = false;
-    if(!res.ok){ pendingBarcode=code; openCreateModal(code); return; }
-    const p = res.product;
-    sessionReception[code] = sessionReception[code] || {nom:p.nom, qte:0};
-    sessionReception[code].qte++;
-    renderSession('reception');
-    toast(p.nom+' — entrée enregistrée');
-  });
-}
-
-function renderSession(mode){
-  const data = mode==='sortie'?sessionSortie:sessionReception;
-  const ul = document.getElementById('list-'+mode);
-  ul.innerHTML='';
-  Object.values(data).reverse().forEach(it=>{
-    const li = document.createElement('li');
-    li.innerHTML = `<span></span><span class="qte-badge"></span>`;
-    li.children[0].textContent = it.nom;
-    li.children[1].textContent = 'x'+it.qte;
-    ul.appendChild(li);
-  });
-}
-
-function loadSessionFromHistory(mode){
-  const type = mode === 'sortie' ? 'Sortie' : 'Entrée';
-  const today = new Date();
-  const dateStr = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
-  callAPI('getHistory', { limit: 50, type, date: dateStr }, 'GET').then(list => {
-    const data = mode === 'sortie' ? sessionSortie : sessionReception;
-    Object.keys(data).forEach(k => delete data[k]);
-    (list || []).slice().reverse().forEach(it => {
-      data[it.barcode] = data[it.barcode] || { nom: it.nom, qte: 0 };
-      data[it.barcode].qte += it.quantite;
-    });
-    renderSession(mode);
-  });
-}
-
-function toast(msg, isError){
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.toggle('error', !!isError);
-  t.classList.add('show');
-  clearTimeout(window._toastTimer);
-  window._toastTimer = setTimeout(()=>t.classList.remove('show'),2200);
-}
-
-function loadStock(){
-  const el = document.getElementById('stock-list');
-  el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
-  callAPI('getStock', {}, 'GET').then(list => {
-    stockCache = list || [];
-    renderStock();
-  });
-}
-
-function pastille(q,s){ if(q<=0) return 'red'; if(q<=s) return 'orange'; return 'green'; }
-
-function renderStock(){
-  const q = (document.getElementById('search').value||'').toLowerCase();
-  const el = document.getElementById('stock-list');
-  el.innerHTML='';
-  const filtered = stockCache.filter(p=>(p.nom||'').toLowerCase().includes(q) || String(p.barcode).includes(q));
-  if(filtered.length===0){
-    el.innerHTML = '<p style="color:var(--muted);text-align:center;">Aucun produit.</p>';
-    return;
-  }
-  filtered.forEach(p=>{
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.innerHTML = `
-        <div class="card-top" onclick="toggleEdit(${p.row})">
-          <div style="display:flex;gap:10px;align-items:center">
-            <div class="dot ${pastille(p.quantite,p.seuil)}"></div>
-            <div>
-              <div class="pname"></div>
-              <div class="psub"></div>
-            </div>
-          </div>
-        </div>
-        <div class="edit-grid" id="edit-${p.row}" style="display:none">
-          <div><label>Nom</label><input id="e-nom-${p.row}" value="${escapeAttr(p.nom)}"></div>
-          <div><label>Catégorie</label><input id="e-cat-${p.row}" value="${escapeAttr(p.categorie)}"></div>
-          <div><label>Contenance</label><input id="e-cont-${p.row}" value="${escapeAttr(p.contenance)}"></div>
-          <div><label>Prix (€)</label><input type="number" step="0.01" id="e-prix-${p.row}" value="${p.prix||0}"></div>
-          <div><label>Seuil alerte</label><input type="number" id="e-seuil-${p.row}" value="${p.seuil||3}"></div>
-          <div><label>Quantité</label><input type="number" id="e-qte-${p.row}" value="${p.quantite||0}"></div>
-          <div><label>Qté/commande</label><input type="number" id="e-qtecmd-${p.row}" value="${p.qteCommande||5}"></div>
-        </div>
-        <div class="row-actions" id="actions-${p.row}" style="display:none">
-          <button class="btn secondary" onclick="deleteRow('${p.barcode}')">Supprimer</button>
-          <button class="btn" onclick="saveEdit(${p.row},'${p.barcode}')">Enregistrer</button>
-        </div>`;
-      card.querySelector('.pname').textContent = p.nom;
-      card.querySelector('.psub').textContent = `${p.contenance||''} · ${Number(p.prix||0).toFixed(2)}€ · Qté: ${p.quantite}`;
-      el.appendChild(card);
-  });
-}
-
-function escapeAttr(s){
-  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-}
-
-function toggleEdit(row){
-  const e = document.getElementById('edit-'+row), a = document.getElementById('actions-'+row);
-  const show = e.style.display==='none';
-  e.style.display = show?'grid':'none';
-  a.style.display = show?'flex':'none';
-}
-
-function saveEdit(row, barcode){
-  const p = {
-    row, barcode,
-    nom: document.getElementById('e-nom-'+row).value,
-    categorie: document.getElementById('e-cat-'+row).value,
-    contenance: document.getElementById('e-cont-'+row).value,
-    prix: document.getElementById('e-prix-'+row).value,
-    seuil: document.getElementById('e-seuil-'+row).value,
-    quantite: document.getElementById('e-qte-'+row).value,
-    qteCommande: document.getElementById('e-qtecmd-'+row).value
-  };
-  callAPI('updateProduct', { product: p }).then(res => {
-    if(res.ok){ toast('Produit mis à jour'); loadStock(); }
-  });
-}
-
-function deleteRow(barcode){
-  if(!confirm('Supprimer ce produit ?')) return;
-  callAPI('deleteProduct', { barcode }).then(res => {
-    if(res.ok){ toast('Produit supprimé'); loadStock(); }
-  });
-}
-
-function openCreateModal(barcode){
-  document.getElementById('m-barcode').value = barcode || '';
-  document.getElementById('m-nom').value='';
-  document.getElementById('m-categorie').value='';
-  document.getElementById('m-contenance').value='';
-  document.getElementById('m-prix').value='';
-  document.getElementById('m-seuil').value=3;
-  document.getElementById('m-qtecommande').value=5;
-  document.getElementById('m-quantite').value = barcode ? 1 : 0;
-  document.getElementById('scan-hint').style.display = barcode ? 'flex' : 'none';
-  ['m-barcode','m-nom','m-categorie','m-contenance','m-prix','m-seuil','m-qtecommande','m-quantite']
-    .forEach(id => document.getElementById(id).classList.remove('invalid'));
-  document.getElementById('modal-bg').classList.add('show');
-  setTimeout(() => document.getElementById(barcode ? 'm-nom' : 'm-barcode').focus(), 50);
-}
-
-function closeModal(){ document.getElementById('modal-bg').classList.remove('show'); pendingBarcode=null; }
-
-function submitCreate(){
-  const btn = document.getElementById('submit-create-btn');
-  const barcodeEl = document.getElementById('m-barcode');
-  const nomEl = document.getElementById('m-nom');
-  barcodeEl.classList.toggle('invalid', !barcodeEl.value.trim());
-  nomEl.classList.toggle('invalid', !nomEl.value.trim());
-  if(!barcodeEl.value.trim() || !nomEl.value.trim()){
-    toast('Code-barre et nom requis', true);
-    (!barcodeEl.value.trim() ? barcodeEl : nomEl).focus();
-    return;
-  }
-  const p = {
-    barcode: barcodeEl.value.trim(),
-    nom: nomEl.value.trim(),
-    categorie: document.getElementById('m-categorie').value.trim(),
-    contenance: document.getElementById('m-contenance').value.trim(),
-    prix: document.getElementById('m-prix').value,
-    seuil: document.getElementById('m-seuil').value,
-    qteCommande: document.getElementById('m-qtecommande').value,
-    quantite: document.getElementById('m-quantite').value
-  };
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>Création...';
-  callAPI('createProduct', { product: p }).then(res => {
-    btn.disabled = false;
-    btn.innerHTML = 'Créer la fiche';
-    if(!res.ok){ toast(res.error||'Erreur', true); return; }
-    toast('Produit créé ✓');
-    if(pendingBarcode){
-      sessionReception[pendingBarcode] = {nom:p.nom, qte:Number(p.quantite)||1};
-      renderSession('reception');
-    }
-    closeModal();
-    loadStock();
-  });
-}
-
-function openBuyerModal(){
-  callAPI('getBuyerInfo', {}, 'GET').then(info => {
-    info = info || {};
-    document.getElementById('b-nom').value = info.nom || '';
-    document.getElementById('b-adresse').value = info.adresse || '';
-    document.getElementById('b-telephone').value = info.telephone || '';
-    document.getElementById('b-email').value = info.email || '';
-    document.getElementById('buyer-modal-bg').classList.add('show');
-    setTimeout(() => document.getElementById('b-nom').focus(), 50);
-  });
-}
-
-function closeBuyerModal(){ document.getElementById('buyer-modal-bg').classList.remove('show'); }
-
-function saveBuyerInfo(){
-  const btn = document.getElementById('save-buyer-btn');
-  const info = {
-    nom: document.getElementById('b-nom').value.trim(),
-    adresse: document.getElementById('b-adresse').value.trim(),
-    telephone: document.getElementById('b-telephone').value.trim(),
-    email: document.getElementById('b-email').value.trim()
-  };
-  btn.disabled = true;
-  callAPI('setBuyerInfo', { info }).then(res => {
-    btn.disabled = false;
-    if(res.ok){ toast('Coordonnées enregistrées ✓'); closeBuyerModal(); }
-  });
-}
-
-function loadEmail(){
-  callAPI('getSupplierEmail', {}, 'GET').then(res => {
-    document.getElementById('supplier-email').value = res.email || '';
-  });
-}
-
-function saveEmail(){
-  const email = document.getElementById('supplier-email').value.trim();
-  if(!email){ toast('Adresse email invalide', true); return; }
-  callAPI('setSupplierEmail', { email }).then(res => { if(res.ok) toast("E-mail enregistré"); });
-}
-
-function loadSuggestion(){
-  const el = document.getElementById('order-list');
-  el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
-  callAPI('getOrderSuggestion', {}, 'GET').then(list => {
-    el.innerHTML='';
-    if(!list || list.length === 0){
-      el.innerHTML = '<p style="color:var(--muted);text-align:center;">Aucun produit sous le seuil d\'alerte.</p>';
-      calculateOrderTotal();
-      return;
-    }
-    list.forEach(p=>{
-      const suggestedQty = Number(p.qteCommande) > 0
-        ? Number(p.qteCommande)
-        : Math.max(1, (Number(p.seuil)*2) - Number(p.quantite));
-      const line = document.createElement('div');
-      line.className = 'order-line';
-      line.dataset.barcode = p.barcode;
-      line.dataset.nom = p.nom;
-      line.dataset.prix = p.prix;
-      line.dataset.contenance = p.contenance||'';
-      line.innerHTML = `
-        <div class="dot ${pastille(p.quantite,p.seuil)}"></div>
-        <div class="info">
-          <b class="lnom"></b><br>
-          <span class="psub lsub"></span>
-        </div>
-        <input type="number" class="order-qty" value="${suggestedQty}" min="0" onchange="calculateOrderTotal()">`;
-      line.querySelector('.lnom').textContent = p.nom;
-      line.querySelector('.lsub').textContent = `Stock: ${p.quantite} / Seuil: ${p.seuil} · ${Number(p.prix||0).toFixed(2)}€`;
-      el.appendChild(line);
-    });
-    calculateOrderTotal();
-  });
-}
-
-function calculateOrderTotal(){
-  let total = 0;
-  document.querySelectorAll('.order-line').forEach(line=>{
-    const prix = Number(line.dataset.prix) || 0;
-    const qty = Number(line.querySelector('.order-qty').value) || 0;
-    total += prix * qty;
-  });
-  document.getElementById('order-total').textContent = `Total : ${total.toFixed(2)} €`;
-}
-
-function sendOrderNow(){
-  const email = document.getElementById('supplier-email').value.trim();
-  if(!email){
-    toast("Veuillez indiquer l'e-mail du fournisseur", true);
-    document.getElementById('supplier-email').focus();
-    return;
-  }
-
-  const items = [];
-  document.querySelectorAll('.order-line').forEach(line => {
-    const qte = Number(line.querySelector('.order-qty').value) || 0;
-    if(qte > 0){
-      items.push({
-        barcode: line.dataset.barcode,
-        nom: line.dataset.nom,
-        contenance: line.dataset.contenance,
-        prix: Number(line.dataset.prix) || 0,
-        quantite: qte
-      });
-    }
-  });
-
-  if(items.length === 0){
-    toast("La commande est vide", true);
-    return;
-  }
-
-  const btn = document.getElementById('send-order-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>Envoi en cours...';
-
-  callAPI('sendOrder', { email, items }).then(res => {
-    btn.disabled = false;
-    btn.innerHTML = '📄 Générer PDF et envoyer';
-    if(res.ok){
-      toast("Commande envoyée ✓");
-      loadSuggestion(); 
-    } else {
-      toast(res.error || "Erreur lors de l'envoi", true);
-    }
-  });
-}
+window.addEventListener('DOMContentLoaded', startScanner);
 </script>
 </body>
 </html>
