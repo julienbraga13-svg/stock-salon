@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Stock Salon</title>
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.10/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <style>
 :root{--bg:#f6f7f8;--card:#fff;--accent:#0f766e;--text:#111827;--muted:#6b7280;--green:#22c55e;--orange:#f59e0b;--red:#ef4444;--border:#e5e7eb}
 *{box-sizing:border-box}
@@ -14,10 +14,7 @@ header{background:var(--card);padding:14px 16px;font-weight:700;font-size:18px;b
 .tab{display:none;padding:14px}
 .tab.active{display:block}
 .scanner-box{background:#000;border-radius:16px;overflow:hidden;position:relative;min-height:220px;margin-bottom:14px;cursor:pointer}
-#reader-sortie, #reader-reception{width:100%}
-#reader-sortie video, #reader-reception video{object-fit: contain !important;
-  border-radius: 16px;
-  background: #000;}
+#video-sortie, #video-reception{width:100%;height:220px;object-fit:cover;display:block;background:#000;border-radius:16px}
 .manual{display:flex;gap:8px;margin-bottom:14px}
 .manual input{flex:1;padding:12px;border-radius:10px;border:1px solid var(--border);font-size:15px}
 button{cursor:pointer;border:none;font-weight:600;font-family:inherit}
@@ -82,7 +79,9 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
 
 <!-- ONGLET SORTIE -->
 <div class="tab active" id="tab-sortie">
-  <div class="scanner-box" onclick="startScanner('reader-sortie')" title="Toucher pour relancer la caméra"><div id="reader-sortie"></div></div>
+  <div class="scanner-box" onclick="startScanner('sortie')" title="Toucher pour relancer la caméra">
+    <video id="video-sortie" muted autoplay playsinline></video>
+  </div>
   <div class="manual">
     <input id="manual-sortie" placeholder="Code-barre manuel" inputmode="numeric">
     <button class="btn" onclick="manualSubmit('sortie')">Valider</button>
@@ -117,7 +116,9 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
 
 <!-- ONGLET RECEPTION -->
 <div class="tab" id="tab-reception">
-  <div class="scanner-box" onclick="startScanner('reader-reception')" title="Toucher pour relancer la caméra"><div id="reader-reception"></div></div>
+  <div class="scanner-box" onclick="startScanner('reception')" title="Toucher pour relancer la caméra">
+    <video id="video-reception" muted autoplay playsinline></video>
+  </div>
   <div class="manual">
     <input id="manual-reception" placeholder="Code-barre manuel" inputmode="numeric">
     <button class="btn" onclick="manualSubmit('reception')">Valider</button>
@@ -194,12 +195,71 @@ nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px
 // ⚠️ INSÉREZ VOTRE URL GOOGLE APPS SCRIPT CI-DESSOUS (remplacez le lien entre les guillemets)
 const API_URL = "https://script.google.com/macros/s/AKfycbz4i0ApoZesOOI3yMVUZz_j2JQ__nI2Qeh1Qa1Mf5W5ri0_Z-Bebf1V5Z3d6ntm0Y16/exec";
 
-let html5QrCode = null;
-let currentScannerTarget = null;
+// ================== SCANNER (ZXing) ==================
+// ZXing énumère les vraies caméras du téléphone (getUserMedia/enumerateDevices)
+// au lieu de se fier à facingMode:"environment", qui est mal supporté sur
+// beaucoup de marques Android (Xiaomi, Huawei, Samsung anciens, etc.).
+// Cela évite les écrans noirs et les échecs de lancement caméra.
+let codeReader = null;
+let currentScannerTarget = null; // 'sortie' | 'reception'
 let lastCode = null, lastTime = 0;
 let scanMode = 'sortie';
 let sessionSortie = {}, sessionReception = {}, stockCache = [], pendingBarcode = null;
 let scanLock = false; // évite les doubles envois pendant l'appel réseau
+
+function getScanHints_(){
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+    ZXing.BarcodeFormat.EAN_13,
+    ZXing.BarcodeFormat.EAN_8,
+    ZXing.BarcodeFormat.UPC_A,
+    ZXing.BarcodeFormat.UPC_E,
+    ZXing.BarcodeFormat.CODE_128,
+    ZXing.BarcodeFormat.CODE_39
+  ]);
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  return hints;
+}
+
+// Choisit la meilleure caméra arrière disponible en inspectant les labels
+// réels des périphériques (plus fiable que facingMode sur Android).
+async function pickBackCameraId_(){
+  try{
+    const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
+    if(!devices.length) return undefined;
+    const back = devices.find(d => /back|rear|environment|arrière/i.test(d.label));
+    return (back || devices[devices.length - 1]).deviceId;
+  }catch(e){
+    return undefined; // laisse le navigateur choisir par défaut
+  }
+}
+
+async function startScanner(target){
+  if(currentScannerTarget === target && codeReader) return;
+  await stopScanner();
+  currentScannerTarget = target;
+  const videoEl = document.getElementById('video-' + target);
+  if(!codeReader) codeReader = new ZXing.BrowserMultiFormatReader(getScanHints_());
+
+  try{
+    const deviceId = await pickBackCameraId_();
+    await codeReader.decodeFromVideoDevice(deviceId, videoEl, (result, err) => {
+      if(result) onScanSuccess(result.getText());
+      // les erreurs "NotFoundException" sont normales (aucun code détecté sur la frame), on les ignore
+    });
+  }catch(err){
+    console.error("Erreur lancement caméra :", err);
+    toast("Impossible d'accéder à la caméra.", true);
+  }
+}
+
+async function stopScanner(){
+  if(codeReader){
+    try{ codeReader.reset(); }catch(e){}
+  }
+  currentScannerTarget = null;
+}
+// =======================================================
 
 // APPEL API DISTANT (Google Apps Script)
 async function callAPI(action, payload = {}, method = 'POST') {
@@ -215,9 +275,6 @@ async function callAPI(action, payload = {}, method = 'POST') {
       options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
     }
 
-    // BUG CORRIGÉ : il manquait "options" ici, donc TOUTES les requêtes
-    // POST (sortie, réception, création/édition/suppression produit,
-    // commande) étaient envoyées en GET et ignorées par le serveur.
     const response = await fetch(url, options);
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const data = await response.json();
@@ -231,7 +288,7 @@ async function callAPI(action, payload = {}, method = 'POST') {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  startScanner('reader-sortie');
+  startScanner('sortie');
   loadSessionFromHistory('sortie');
 });
 
@@ -242,67 +299,12 @@ function switchTab(tab){
   document.getElementById('nav-'+tab).classList.add('active');
   scanMode = tab;
 
-  if(tab==='sortie'){ startScanner('reader-sortie'); loadSessionFromHistory('sortie'); }
-  else if(tab==='reception'){ startScanner('reader-reception'); loadSessionFromHistory('reception'); }
+  if(tab==='sortie'){ startScanner('sortie'); loadSessionFromHistory('sortie'); }
+  else if(tab==='reception'){ startScanner('reception'); loadSessionFromHistory('reception'); }
   else stopScanner();
 
   if(tab==='stock') loadStock();
   if(tab==='commande') { loadEmail(); loadSuggestion(); }
-}
-
-function startScanner(targetId){
-  if(currentScannerTarget === targetId && html5QrCode && html5QrCode.isScanning) return;
-
-  stopScanner().then(() => {
-    currentScannerTarget = targetId;
-    
-    html5QrCode = new Html5Qrcode(targetId, {
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39
-      ],
-      verbose: false
-    });
-
-    const config = {
-      fps: 12, 
-      qrbox: { width: 260, height: 140 }, // Format rectangle adapté aux codes-barres 1D
-      // 🔥 On retire "aspectRatio" : c'est lui qui cause l'écran noir sur Android !
-      experimentalFeatures: { useBarCodeDetectorIfSupported: true } // Accélération native
-    };
-
-    // Un seul appel simple : "Donne-moi la caméra arrière"
-    html5QrCode.start(
-      { facingMode: "environment" },
-      config,
-      onScanSuccess
-    ).catch((err) => {
-      console.error("Erreur lancement caméra :", err);
-      toast("Impossible d'accéder à la caméra.", true);
-    });
-  });
-}
-
-function stopScanner(){
-  if(html5QrCode){
-    if(html5QrCode.isScanning){
-      return html5QrCode.stop().then(() => {
-        try { html5QrCode.clear(); } catch(e){}
-        currentScannerTarget = null;
-      }).catch(err => {
-        console.error("Erreur lors de l'arrêt du scanner :", err);
-        currentScannerTarget = null;
-      });
-    } else {
-      try { html5QrCode.clear(); } catch(e){}
-      currentScannerTarget = null;
-    }
-  }
-  return Promise.resolve();
 }
 
 function onScanSuccess(decodedText){
