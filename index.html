@@ -145,11 +145,19 @@ async function startScanner() {
   errMsg.textContent = '';
   
   try {
+    if (html5Qr) {
+      try { await html5Qr.stop(); } catch(e) {}
+    }
+    
     html5Qr = new Html5Qrcode('reader', { verbose: false });
     
     const config = {
-      fps: 15,
-      aspectRatio: window.innerWidth / (window.innerHeight * 0.333)
+      fps: 10,
+      videoConstraints: {
+        facingMode: "environment",
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
     };
 
     const onSuccess = (decodedText, result) => {
@@ -161,37 +169,13 @@ async function startScanner() {
     
     const onFailure = () => {};
 
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-    if (isIOS) {
-      const cameras = await Html5Qrcode.getCameras();
-      const backCamera = cameras.find(c => /back|rear|arrière|environment/i.test(c.label)) || cameras[cameras.length - 1];
-      
-      if (backCamera) {
-        await html5Qr.start(backCamera.id, config, onSuccess, onFailure);
-      } else {
-        await html5OrgStartDefault();
-      }
-
-      // Correctif spécifique iOS : application forcée des contraintes de flux pour débloquer le moteur de décodage
-      setTimeout(async () => {
-        try {
-          const capabilities = html5Qr.getRunningTrackCapabilities();
-          if (capabilities) {
-            await html5Qr.applyVideoConstraints({
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              frameRate: { ideal: 15 }
-            });
-          }
-        } catch (e) {
-          console.-log("Appoint constraints non supporté", e);
-        }
-      }, 1000);
-
-    } else {
-      await html5Qr.start({ facingMode: "environment" }, config, onSuccess, onFailure);
-    }
+    // Lancement unifié direct avec les contraintes matérielles environment
+    await html5Qr.start(
+      { facingMode: "environment" },
+      config,
+      onSuccess,
+      onFailure
+    );
 
     startOverlay.style.display = 'none';
   } catch (err) {
