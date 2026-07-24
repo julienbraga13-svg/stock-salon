@@ -12,20 +12,19 @@
 
   /* --- Zone caméra (1/3 haut) --- */
   #scan-zone { flex:0 0 33.333dvh; height:33.333dvh; position:relative; background:#000; overflow:hidden; }
-  #reader { width:100%; height:100%; }
+  #reader { width:100%; height:100%; position:relative; }
   
+  /* Forçage universel de la vidéo pour forcer l'affichage du flux et du viseur */
   #reader video {
     width: 100% !important;
     height: 100% !important;
     object-fit: cover !important;
-    position: absolute;
-    inset: 0;
   }
 
   #frame-overlay {
     position:absolute; inset:12px; border:3px solid rgba(255,255,255,.55);
     border-radius:14px; pointer-events:none; transition: border-color .15s, box-shadow .15s;
-    z-index: 3;
+    z-index: 5;
   }
   #frame-overlay.ok { border-color:#22c55e; box-shadow:0 0 22px rgba(34,197,94,.75); }
   #start-overlay {
@@ -39,7 +38,7 @@
   #err-msg { color:#f87171; font-size:13px; max-width:90%; }
   #scan-zone .badge {
     position:absolute; top:8px; right:8px; background:rgba(0,0,0,.5); color:#fff;
-    font-size:11px; padding:4px 8px; border-radius:8px; z-index:5;
+    font-size:11px; padding:4px 8px; border-radius:8px; z-index:6;
   }
 
   /* --- Historique (2/3 bas) --- */
@@ -139,6 +138,23 @@ clearBtn.addEventListener('click', () => {
   countBadge.textContent = '0 scan';
 });
 
+// Liste exhaustive des formats pris en charge pour éviter les blocages de décodage sous iOS
+const formats = [
+  Html5QrcodeSupportedFormats.QR_CODE,
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A,
+  Html5QrcodeSupportedFormats.UPC_E,
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.CODE_93,
+  Html5QrcodeSupportedFormats.CODABAR,
+  Html5QrcodeSupportedFormats.ITF,
+  Html5QrcodeSupportedFormats.DATA_MATRIX,
+  Html5QrcodeSupportedFormats.AZTEC,
+  Html5QrcodeSupportedFormats.PDF_417
+];
+
 let html5Qr = null;
 
 async function startScanner() {
@@ -149,7 +165,8 @@ async function startScanner() {
       try { await html5Qr.stop(); } catch(e) {}
     }
     
-    html5Qr = new Html5Qrcode('reader', { verbose: false });
+    // Initialisation avec les formats stricts supportés
+    html5Qr = new Html5Qrcode('reader', { formatsToSupport: formats, verbose: false });
     
     const config = {
       fps: 10,
@@ -169,7 +186,7 @@ async function startScanner() {
     
     const onFailure = () => {};
 
-    // Lancement unifié direct avec les contraintes matérielles environment
+    // Démarrage direct universel
     await html5Qr.start(
       { facingMode: "environment" },
       config,
