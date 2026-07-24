@@ -281,18 +281,19 @@ function startScanner(targetId){
       showTorchButtonIfSupported: true
     };
 
-    html5QrCode.start(
+html5QrCode.start(
       { facingMode: "environment" },
       config,
       onScanSuccess
     ).catch(err => {
       console.error("Erreur d'accès à la caméra:", err);
       Html5Qrcode.getCameras().then(cams => {
-        if(cams && cams.length){
-          html5QrCode.start(cams[cams.length-1].id, config, onScanSuccess);
-        } else {
+        if(!cams || !cams.length){
           toast("Caméra bloquée. Autorisez la caméra dans le navigateur.", true);
+          return;
         }
+        const back = cams.find(c => /back|rear|environment|arrière/i.test(c.label)) || cams[0];
+        html5QrCode.start(back.id, config, onScanSuccess);
       }).catch(()=> toast("Caméra bloquée. Autorisez la caméra dans le navigateur.", true));
     });
   });
