@@ -6,20 +6,33 @@
 <title>Scanner Codes-Barres</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
-  body{margin:0;font-family:sans-serif;background:#111;color:#fff}
-  #reader{width:100%;max-width:500px;margin:0 auto}
-  #status{text-align:center;padding:10px;font-size:14px;color:#0f0}
-  #last{text-align:center;font-size:22px;font-weight:bold;padding:10px;background:#222;word-break:break-all}
-  #history{max-width:500px;margin:0 auto;padding:0 10px}
+  html,body{margin:0;height:100%;font-family:sans-serif;background:#111;color:#fff;overflow:hidden}
+  #top{height:33vh;position:relative;background:#000;overflow:hidden}
+  #reader{width:100%;height:100%}
+  #reader video{width:100%!important;height:100%!important;object-fit:cover}
+  #status{position:absolute;top:0;left:0;right:0;text-align:center;padding:6px;font-size:12px;color:#0f0;background:rgba(0,0,0,.5);z-index:2}
+  #last{position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:18px;font-weight:bold;padding:8px;background:rgba(0,0,0,.6);word-break:break-all;z-index:2}
+  #bottom{height:67vh;overflow-y:auto;padding:0 10px;box-sizing:border-box}
+  #histHeader{display:flex;justify-content:space-between;align-items:center;padding:10px 0;position:sticky;top:0;background:#111}
+  #histHeader h3{margin:0;font-size:16px}
+  #clearBtn{background:#a00;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:13px}
   .item{border-bottom:1px solid #333;padding:8px 0;display:flex;justify-content:space-between;font-size:14px}
   .item span:last-child{color:#888}
 </style>
 </head>
 <body>
-<div id="status">Initialisation caméra…</div>
-<div id="reader"></div>
-<div id="last">En attente…</div>
-<div id="history"></div>
+<div id="top">
+  <div id="status">Initialisation caméra…</div>
+  <div id="reader"></div>
+  <div id="last">En attente…</div>
+</div>
+<div id="bottom">
+  <div id="histHeader">
+    <h3 id="count">Historique (0)</h3>
+    <button id="clearBtn">Effacer</button>
+  </div>
+  <div id="history"></div>
+</div>
 
 <script>
 let lastCode = null, lastTime = 0;
@@ -34,6 +47,8 @@ function beep(){
   o.start(); o.stop(ctx.currentTime + 0.15);
 }
 
+let total = 0;
+
 function onScan(code){
   const now = Date.now();
   if (code === lastCode && (now - lastTime) < DELAY) return;
@@ -45,10 +60,18 @@ function onScan(code){
   const t = new Date().toLocaleTimeString();
   row.innerHTML = `<span>${code}</span><span>${t}</span>`;
   document.getElementById("history").prepend(row);
+  total++;
+  document.getElementById("count").textContent = `Historique (${total})`;
 }
 
+document.getElementById("clearBtn").onclick = () => {
+  document.getElementById("history").innerHTML = "";
+  total = 0;
+  document.getElementById("count").textContent = "Historique (0)";
+};
+
 const html5QrCode = new Html5Qrcode("reader");
-const config = { fps: 10, qrbox: { width: 280, height: 150 }, aspectRatio: 1.7 };
+const config = { fps: 10, qrbox: { width: 260, height: 100 } };
 
 html5QrCode.start(
   { facingMode: "environment" },
