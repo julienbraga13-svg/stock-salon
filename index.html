@@ -255,6 +255,7 @@ function startScanner(targetId){
 
   stopScanner().then(() => {
     currentScannerTarget = targetId;
+    
     html5QrCode = new Html5Qrcode(targetId, {
       formatsToSupport: [
         Html5QrcodeSupportedFormats.EAN_13,
@@ -268,50 +269,20 @@ function startScanner(targetId){
     });
 
     const config = {
-      fps: 15,
-      qrbox: { width: 280, height: 150 },
-      aspectRatio: 1.0,
-      experimentalFeatures: { useBarCodeDetectorIfSupported: true } 
+      fps: 12, 
+      qrbox: { width: 260, height: 140 }, // Format rectangle adapté aux codes-barres 1D
+      // 🔥 On retire "aspectRatio" : c'est lui qui cause l'écran noir sur Android !
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true } // Accélération native
     };
 
-    // Tentative 1 : Demande de HD polie (ideal), sans forcer (pas de min/max)
-    const hdConstraints = {
-      facingMode: "environment",
-      width: { ideal: 1280 },
-      height: { ideal: 720 }
-    };
-
+    // Un seul appel simple : "Donne-moi la caméra arrière"
     html5QrCode.start(
-      hdConstraints,
+      { facingMode: "environment" },
       config,
       onScanSuccess
-    ).catch((err1) => {
-      console.warn("Échec HD, passage au fallback 1...", err1);
-      
-      // Tentative 2 : Juste la caméra arrière par défaut, sans parler de résolution
-      html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        onScanSuccess
-      ).catch((err2) => {
-        console.warn("Échec facingMode, passage au fallback 2...", err2);
-        
-        // Tentative 3 : Ciblage manuel de l'ID de la caméra
-        Html5Qrcode.getCameras().then(cams => {
-          if(!cams || !cams.length){
-            toast("Aucune caméra détectée.", true);
-            return;
-          }
-          // On cherche une caméra arrière, sinon on prend la dernière de la liste
-          const backCam = cams.find(c => /back|rear|environment|arrière/i.test(c.label)) || cams[cams.length - 1];
-          
-          html5QrCode.start(backCam.id, config, onScanSuccess)
-            .catch(err3 => {
-              console.error("Échec total du scanner :", err3);
-              toast("Impossible d'allumer la caméra.", true);
-            });
-        }).catch(() => toast("Caméra bloquée. Vérifiez les autorisations du navigateur.", true));
-      });
+    ).catch((err) => {
+      console.error("Erreur lancement caméra :", err);
+      toast("Impossible d'accéder à la caméra.", true);
     });
   });
 }
