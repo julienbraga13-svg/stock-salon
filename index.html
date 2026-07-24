@@ -1,167 +1,199 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <!-- Configuration viewport cruciale pour le plein écran mobile -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Scanner Haute Précision</title>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #000; /* Fond noir pour l'immersion */
-            overflow: hidden; /* Empêche le défilement pendant le scan */
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Scanner de codes-barres</title>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; background:#0b0d10; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .app { display:flex; flex-direction:column; height:100dvh; overflow:hidden; }
 
-        /* Conteneur de la caméra : remplit tout l'écran */
-        #reader {
-            width: 100%;
-            height: 100vh;
-            position: relative;
-        }
+  /* --- Zone caméra (1/3 haut) --- */
+  #scan-zone { flex:0 0 33.333dvh; height:33.333dvh; position:relative; background:#000; overflow:hidden; }
+  #reader { width:100%; height:100%; }
+  #reader video { width:100% !important; height:100% !important; object-fit:cover; }
+  #frame-overlay {
+    position:absolute; inset:12px; border:3px solid rgba(255,255,255,.55);
+    border-radius:14px; pointer-events:none; transition: border-color .15s, box-shadow .15s;
+  }
+  #frame-overlay.ok { border-color:#22c55e; box-shadow:0 0 22px rgba(34,197,94,.75); }
+  #start-overlay {
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px; background:#0b0d10; color:#e8e8e8; text-align:center; padding:12px;
+  }
+  #start-overlay button {
+    background:#22c55e; color:#06240f; border:none; border-radius:10px; padding:12px 22px;
+    font-size:16px; font-weight:600; cursor:pointer;
+  }
+  #err-msg { color:#f87171; font-size:13px; max-width:90%; }
+  #scan-zone .badge {
+    position:absolute; top:8px; right:8px; background:rgba(0,0,0,.5); color:#fff;
+    font-size:11px; padding:4px 8px; border-radius:8px; z-index:5;
+  }
 
-        /* VIDÉO : La caméra elle-même */
-        #reader video {
-            object-fit: cover; /* S'assure que la vidéo remplit l'écran sans déformation */
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-
-        /* ZONE DE VISIBILITÉ (Le masque/viseur) */
-        /* C'est ici que nous définissons la zone active du 1/3 haut */
-        .scan-region-highlight {
-            position: absolute;
-            /* Positionnement dans le 1/3 haut */
-            top: 10%; 
-            left: 10%;
-            width: 80%;
-            /* Hauteur réduite (environ le 1/4 de l'écran pour un effet "barrette") */
-            height: 20vh; 
-            
-            border: 3px solid #00FF00; /* Viseur vert vif */
-            border-radius: 10px;
-            box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); /* Assombrit le reste de l'écran */
-            z-index: 100;
-            pointer-events: none; /* La souris passe à travers */
-        }
-
-        /* Animation de scan (ligne horizontale) */
-        .scan-region-highlight::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 2px;
-            background-color: #00FF00;
-            animation: scan-line 2s infinite linear;
-        }
-
-        @keyframes scan-line {
-            0% { top: 0%; }
-            50% { top: 100%; }
-            100% { top: 0%; }
-        }
-
-        /* Zone de résultat flottante en bas */
-        #result-overlay {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 90%;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-            z-index: 105;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            font-family: sans-serif;
-        }
-        #result {
-            font-weight: bold;
-            color: #c0392b;
-            font-size: 1.2em;
-            word-break: break-all;
-        }
-    </style>
+  /* --- Historique (2/3 bas) --- */
+  #history-header {
+    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+    padding:10px 14px; background:#14171c; color:#e8e8e8; border-top:1px solid #23262c;
+  }
+  #history-header h1 { font-size:14px; margin:0; font-weight:600; }
+  #clear-btn { background:none; border:1px solid #3a3f47; color:#aab0bb; border-radius:8px; padding:6px 10px; font-size:12px; }
+  #history { flex:1 1 auto; overflow-y:auto; background:#0f1115; padding:10px; }
+  .item {
+    background:#181b21; border:1px solid #23262c; border-radius:12px; padding:10px 12px; margin-bottom:8px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px; animation:in .25s ease;
+  }
+  @keyframes in { from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+  .item .code { font-family: "SFMono-Regular", Consolas, Menlo, monospace; color:#f5f5f5; font-size:15px; word-break:break-all; }
+  .item .meta { color:#8b93a1; font-size:11px; margin-top:2px; }
+  .item .fmt { background:#1f3d2b; color:#4ade80; font-size:10px; padding:2px 7px; border-radius:6px; white-space:nowrap; }
+  #empty { color:#5b6270; font-size:13px; text-align:center; padding:24px 10px; }
+</style>
 </head>
 <body>
-
-    <!-- Conteneur principal de la caméra -->
-    <div id="reader">
-        <!-- Le viseur graphique (superposé par CSS) -->
-        <div class="scan-region-highlight"></div>
+<div class="app">
+  <div id="scan-zone">
+    <div id="reader"></div>
+    <div id="frame-overlay"></div>
+    <div class="badge" id="count-badge">0 scan</div>
+    <div id="start-overlay">
+      <div style="font-size:15px;">Scanner de codes-barres</div>
+      <button id="start-btn">▶ Démarrer la caméra</button>
+      <div id="err-msg"></div>
     </div>
+  </div>
 
-    <!-- Résultat affiché par-dessus -->
-    <div id="result-overlay">
-        <div>Scannez un code dans la zone verte</div>
-        <div id="result">En attente...</div>
+  <div id="history-header">
+    <h1>Historique</h1>
+    <button id="clear-btn">Effacer</button>
+  </div>
+  <div id="history">
+    <div id="empty">Aucun code scanné pour l'instant</div>
+  </div>
+</div>
+
+<script>
+const startOverlay = document.getElementById('start-overlay');
+const startBtn = document.getElementById('start-btn');
+const errMsg = document.getElementById('err-msg');
+const frame = document.getElementById('frame-overlay');
+const historyEl = document.getElementById('history');
+const emptyEl = document.getElementById('empty');
+const clearBtn = document.getElementById('clear-btn');
+const countBadge = document.getElementById('count-badge');
+
+let scanCount = 0;
+let audioCtx = null;
+
+function beep() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.value = 880;
+    g.gain.value = 0.15;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    o.stop(audioCtx.currentTime + 0.15);
+  } catch (e) {}
+}
+
+function flashGreen() {
+  frame.classList.add('ok');
+  setTimeout(() => frame.classList.remove('ok'), 500);
+}
+
+function addToHistory(text, format) {
+  scanCount++;
+  countBadge.textContent = scanCount + ' scan' + (scanCount > 1 ? 's' : '');
+  emptyEl.style.display = 'none';
+  const item = document.createElement('div');
+  item.className = 'item';
+  const now = new Date().toLocaleTimeString('fr-FR');
+  item.innerHTML = `
+    <div>
+      <div class="code">${text.replace(/</g,'&lt;')}</div>
+      <div class="meta">${now}</div>
     </div>
+    <div class="fmt">${format || ''}</div>`;
+  item.addEventListener('click', () => {
+    if (navigator.clipboard) navigator.clipboard.writeText(text).catch(()=>{});
+  });
+  historyEl.prepend(item);
+}
 
-    <script>
-        // Initialisation de l'objet scanner global
-        const html5QrCode = new Html5Qrcode("reader");
+clearBtn.addEventListener('click', () => {
+  historyEl.innerHTML = '';
+  historyEl.appendChild(emptyEl);
+  emptyEl.style.display = 'block';
+  scanCount = 0;
+  countBadge.textContent = '0 scan';
+});
 
-        function onScanSuccess(decodedText, decodedResult) {
-            // Arrête le scan dès qu'un code est trouvé pour éviter les doublons
-            // (Optionnel : vous pouvez choisir de continuer à scanner)
-            // html5QrCode.stop().catch(err => console.error("Erreur arrêt caméra", err));
+const formats = [
+  Html5QrcodeSupportedFormats.QR_CODE,
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A,
+  Html5QrcodeSupportedFormats.UPC_E,
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.CODE_93,
+  Html5QrcodeSupportedFormats.CODABAR,
+  Html5QrcodeSupportedFormats.ITF,
+  Html5QrcodeSupportedFormats.DATA_MATRIX,
+  Html5QrcodeSupportedFormats.AZTEC,
+  Html5QrcodeSupportedFormats.PDF_417
+];
 
-            document.getElementById('result').innerText = decodedText;
-            document.getElementById('result').style.color = "#27ae60";
-            
-            if (navigator.vibrate) navigator.vibrate(200); // Feedback utilisateur
-            console.log(`Code détecté : ${decodedText}`);
-        }
+let html5Qr = null;
 
-        function onScanFailure(error) {
-            // On ignore les erreurs de détection d'image (très fréquentes en continu)
-        }
+async function startScanner() {
+  errMsg.textContent = '';
+  html5Qr = new Html5Qrcode('reader', { formatsToSupport: formats, verbose: false });
 
-        // Configuration critique pour démarrer et scanner
-        const qrCodeSuccessCallback = onScanSuccess;
-        
-        // Configuration du moteur de scan
-        const config = { 
-            fps: 15, // Plus fluide pour le scan en temps réel
-            // Important : On désactive l'interface par défaut pour ne pas avoir 
-            // le choix de la caméra, on force le démarrage programmatique.
-            usebarCodeScanAnalyserIfSupported: true,
-            rememberLastUsedCamera: false // Force la demande à chaque fois
-        };
+  const config = {
+    fps: 0.5,               // ~1 tentative de détection toutes les 2 secondes
+    qrbox: undefined,       // toute la zone caméra sert de zone de détection
+    aspectRatio: window.innerWidth / (window.innerHeight * 0.333),
+    disableFlip: false
+  };
 
-        // DÉMARRAGE AUTOMATIQUE
-        window.addEventListener('load', function () {
-            // Demande l'accès à la caméra en mode "environnement" (arrière)
-            html5QrCode.start(
-                { facingMode: "environment" }, 
-                config,
-                qrCodeSuccessCallback,
-                onScanFailure
-            ).catch((err) => {
-                // Gère les erreurs (caméra refusée, non disponible, etc.)
-                console.error("Erreur démarrage caméra:", err);
-                alert("Impossible d'accéder à la caméra arrière. Vérifiez les permissions.");
-                document.getElementById('reader').innerHTML = "<h1>Erreur Camera</h1><p>" + err + "</p>";
-            });
-        });
+  const onSuccess = (decodedText, result) => {
+    const fmt = result?.result?.format?.formatName || '';
+    beep();
+    flashGreen();
+    addToHistory(decodedText, fmt);
+  };
+  const onFailure = () => {}; // pas de code détecté, on ignore
 
-        // Gère proprement la fermeture de la page
-        window.addEventListener('beforeunload', function() {
-            if (html5QrCode && html5QrCode.isScanning) {
-                html5QrCode.stop();
-            }
-        });
-    </script>
+  try {
+    await html5Qr.start({ facingMode: { exact: 'environment' } }, config, onSuccess, onFailure);
+  } catch (e1) {
+    try {
+      await html5Qr.start({ facingMode: 'environment' }, config, onSuccess, onFailure);
+    } catch (e2) {
+      try {
+        const cams = await Html5Qrcode.getCameras();
+        if (!cams || !cams.length) throw new Error('Aucune caméra trouvée');
+        const back = cams.find(c => /back|rear|arrière|environment/i.test(c.label)) || cams[0];
+        await html5Qr.start(back.id, config, onSuccess, onFailure);
+      } catch (e3) {
+        errMsg.textContent = "Impossible d'accéder à la caméra. Vérifiez les autorisations et que la page est bien en HTTPS.";
+        return;
+      }
+    }
+  }
+  startOverlay.style.display = 'none';
+}
 
+startBtn.addEventListener('click', () => {
+  if (audioCtx) audioCtx.resume().catch(()=>{});
+  startScanner();
+});
+</script>
 </body>
 </html>
