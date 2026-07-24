@@ -156,19 +156,19 @@ async function startScanner() {
   html5Qr = new Html5Qrcode('reader', { formatsToSupport: formats, verbose: false });
 
   const config = {
-    fps: 0.5,               // ~1 tentative de détection toutes les 2 secondes
-    qrbox: undefined,       // toute la zone caméra sert de zone de détection
+    fps: 10, // Augmenté à 10 images par seconde pour fluidifier la détection sur iPhone
+    qrbox: { width: 250, height: 150 }, // Définir une zone rectangulaire cible aide beaucoup la mise au point
     aspectRatio: window.innerWidth / (window.innerHeight * 0.333),
     disableFlip: false
   };
 
   const onSuccess = (decodedText, result) => {
-    const fmt = result?.result?.format?.formatName || '';
+    const fmt = result?.format?.formatName || '';
     beep();
     flashGreen();
     addToHistory(decodedText, fmt);
   };
-  const onFailure = () => {}; // pas de code détecté, on ignore
+  const onFailure = () => {}; 
 
   try {
     await html5Qr.start({ facingMode: { exact: 'environment' } }, config, onSuccess, onFailure);
