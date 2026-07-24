@@ -14,8 +14,7 @@
   #scan-zone { flex:0 0 33.333dvh; height:33.333dvh; position:relative; background:#000; overflow:hidden; }
   #reader { width:100%; height:100%; }
   
-  /* Forçage absolu de la vidéo pour iOS Safari */
-  #reader video, #ios-video {
+  #reader video {
     width: 100% !important;
     height: 100% !important;
     object-fit: cover !important;
@@ -140,30 +139,24 @@ clearBtn.addEventListener('click', () => {
   countBadge.textContent = '0 scan';
 });
 
-const formats = [
-  Html5QrcodeSupportedFormats.QR_CODE,
-  Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.EAN_8,
-  Html5QrcodeSupportedFormats.UPC_A,
-  Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.CODE_39
-];
-
 let html5Qr = null;
 
 async function startScanner() {
   errMsg.textContent = '';
   
   try {
-    html5Qr = new Html5Qrcode('reader', { formatsToSupport: formats, verbose: false });
+    html5Qr = new Html5Qrcode('reader', { verbose: false });
     
+    // Configuration optimisée : pas de qrbox figé pour permettre au moteur de scanner toute l'image, 
+    // et FPS ajusté à 10 pour une analyse fluide sur iOS.
     const config = {
       fps: 10,
-      qrbox: { width: 250, height: 150 }
+      aspectRatio: window.innerWidth / (window.innerHeight * 0.333)
     };
 
     const onSuccess = (decodedText, result) => {
-      const fmt = result?.format?.formatName || 'CODE';
+      // Récupération sécurisée du nom du format peu importe la structure renvoyée par le décodeur
+      const fmt = result?.result?.format?.formatName || result?.format?.formatName || 'CODE';
       beep();
       flashGreen();
       addToHistory(decodedText, fmt);
@@ -171,11 +164,9 @@ async function startScanner() {
     
     const onFailure = () => {};
 
-    // Détection explicite iOS pour contourner le bug d'affichage de la caméra arrière
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
     if (isIOS) {
-      // Sur iPhone, forcer l'utilisation de l'ID direct de la caméra arrière via getCameras()
       const cameras = await Html5Qrcode.getCameras();
       const backCamera = cameras.find(c => /back|rear|arrière|environment/i.test(c.label)) || cameras[cameras.length - 1];
       
