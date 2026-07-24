@@ -14,7 +14,6 @@
   #scan-zone { flex:0 0 33.333dvh; height:33.333dvh; position:relative; background:#000; overflow:hidden; }
   #reader { width:100%; height:100%; position:relative; }
   
-  /* Forçage universel de la vidéo pour forcer l'affichage du flux et du viseur */
   #reader video {
     width: 100% !important;
     height: 100% !important;
@@ -138,7 +137,6 @@ clearBtn.addEventListener('click', () => {
   countBadge.textContent = '0 scan';
 });
 
-// Liste exhaustive des formats pris en charge pour éviter les blocages de décodage sous iOS
 const formats = [
   Html5QrcodeSupportedFormats.QR_CODE,
   Html5QrcodeSupportedFormats.EAN_13,
@@ -146,13 +144,7 @@ const formats = [
   Html5QrcodeSupportedFormats.UPC_A,
   Html5QrcodeSupportedFormats.UPC_E,
   Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.CODE_39,
-  Html5QrcodeSupportedFormats.CODE_93,
-  Html5QrcodeSupportedFormats.CODABAR,
-  Html5QrcodeSupportedFormats.ITF,
-  Html5QrcodeSupportedFormats.DATA_MATRIX,
-  Html5QrcodeSupportedFormats.AZTEC,
-  Html5QrcodeSupportedFormats.PDF_417
+  Html5QrcodeSupportedFormats.CODE_39
 ];
 
 let html5Qr = null;
@@ -165,16 +157,12 @@ async function startScanner() {
       try { await html5Qr.stop(); } catch(e) {}
     }
     
-    // Initialisation avec les formats stricts supportés
     html5Qr = new Html5Qrcode('reader', { formatsToSupport: formats, verbose: false });
     
+    // Configuration neutre sans forçage de contraintes complexes pour garantir l'affichage du viseur sur Android et iOS
     const config = {
       fps: 10,
-      videoConstraints: {
-        facingMode: "environment",
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      }
+      aspectRatio: 1.0
     };
 
     const onSuccess = (decodedText, result) => {
@@ -186,7 +174,6 @@ async function startScanner() {
     
     const onFailure = () => {};
 
-    // Démarrage direct universel
     await html5Qr.start(
       { facingMode: "environment" },
       config,
@@ -195,6 +182,21 @@ async function startScanner() {
     );
 
     startOverlay.style.display = 'none';
+
+    // Astuce spécifique iOS : Ajustement dynamique de la netteté/focus une fois le flux démarré
+    setTimeout(async () => {
+      try {
+        const capabilities = html5Qr.getRunningTrackCapabilities();
+        if (capabilities && capabilities.focusDistance) {
+          await html5Qr.applyVideoConstraints({
+            advanced: [{ focusDistance: 0 }] // Force un focus net sur les éléments proches (codes-barres)
+          });
+        }
+      } catch (err) {
+        // Ignorer si non supporté par le modèle d'iPhone
+      }
+    }, 800);
+
   } catch (err) {
     console.error(err);
     errMsg.textContent = "Erreur caméra : " + (err.message || err) + ". Vérifiez les permissions HTTPS.";
