@@ -5,31 +5,32 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Gestion de Stock</title>
 
+<script src="https://unpkg.com/html5-qrcode"></script>
+
 <style>
 body{
+    margin:0;
     font-family:Arial;
     background:#f2f2f2;
-    margin:0;
-    text-align:center;
 }
 h2{
-    background:#2196F3;
-    color:white;
     margin:0;
     padding:15px;
+    background:#1976d2;
+    color:white;
+    text-align:center;
 }
-video{
-    width:95%;
+#reader{
+    width:100%;
     max-width:500px;
-    border-radius:10px;
-    margin-top:15px;
-    border:3px solid #2196F3;
+    margin:15px auto;
 }
-#code{
-    font-size:22px;
+#last{
+    text-align:center;
+    font-size:20px;
     font-weight:bold;
-    color:#2196F3;
-    margin:15px;
+    color:#1976d2;
+    margin:10px;
 }
 table{
     width:95%;
@@ -40,157 +41,95 @@ table{
 th,td{
     border:1px solid #ccc;
     padding:10px;
+    text-align:center;
 }
 button{
-    padding:8px 15px;
-    margin:2px;
+    padding:6px 12px;
 }
 </style>
-</head>
 
+</head>
 <body>
 
 <h2>Gestion de Stock</h2>
 
-<video id="video" autoplay playsinline></video>
+<div id="reader"></div>
 
-<div id="code">En attente...</div>
+<div id="last">
+Aucun scan
+</div>
 
 <table>
 <thead>
 <tr>
-<th>Code-barres</th>
+<th>Code</th>
 <th>Stock</th>
 <th>+</th>
 <th>-</th>
 </tr>
 </thead>
-<tbody id="stock"></tbody>
+
+<tbody id="liste">
+</tbody>
+
 </table>
 
 <script>
 
-const video=document.getElementById("video");
-const codeAff=document.getElementById("code");
-
-let stocks={};
-
-async function camera(){
-
-const stream=await navigator.mediaDevices.getUserMedia({
-video:{
-facingMode:"environment"
-}
-});
-
-video.srcObject=stream;
-
-if("BarcodeDetector" in window){
-
-const detector=new BarcodeDetector({
-formats:[
-"ean_13",
-"ean_8",
-"code_128",
-"upc_a",
-"upc_e",
-"qr_code"
-]
-});
-
-scan(detector);
-
-}else{
-
-alert("BarcodeDetector non supporté.");
-
-}
-
-}
-
-let dernier="";
-
-async function scan(detector){
-
-const codes=await detector.detect(video);
-
-if(codes.length){
-
-let code=codes[0].rawValue;
-
-if(code!=dernier){
-
-dernier=code;
-
-codeAff.innerHTML=code;
-
-ajouter(code);
-
-setTimeout(()=>dernier="",1000);
-
-}
-
-}
-
-requestAnimationFrame(()=>scan(detector));
-
-}
-
-function ajouter(code){
-
-if(!stocks[code]){
-
-stocks[code]=1;
-
-}else{
-
-stocks[code]++;
-
-}
-
-afficher();
-
-}
-
-function plus(code){
-
-stocks[code]++;
-
-afficher();
-
-}
-
-function moins(code){
-
-if(stocks[code]>0)
-stocks[code]--;
-
-afficher();
-
-}
+let stock={};
 
 function afficher(){
 
 let html="";
 
-for(let c in stocks){
+for(let code in stock){
 
 html+=`
 <tr>
-<td>${c}</td>
-<td>${stocks[c]}</td>
-<td><button onclick="plus('${c}')">+</button></td>
-<td><button onclick="moins('${c}')">-</button></td>
+<td>${code}</td>
+<td>${stock[code]}</td>
+<td><button onclick="stock['${code}']++;afficher()">+</button></td>
+<td><button onclick="if(stock['${code}']>0)stock['${code}']--;afficher()">-</button></td>
 </tr>
 `;
 
 }
 
-document.getElementById("stock").innerHTML=html;
+document.getElementById("liste").innerHTML=html;
 
 }
 
-camera();
+let dernier="";
+let timer=0;
+
+function onScanSuccess(code){
+
+if(code===dernier && Date.now()-timer<1000)
+return;
+
+dernier=code;
+timer=Date.now();
+
+document.getElementById("last").innerHTML=code;
+
+stock[code]=(stock[code]||0)+1;
+
+afficher();
+
+}
+
+const scanner=new Html5QrcodeScanner(
+"reader",
+{
+fps:10,
+qrbox:{width:250,height:120},
+rememberLastUsedCamera:true,
+supportedScanTypes:[Html5QrcodeScanType.SCAN_TYPE_CAMERA]
+},
+false
+);
+
+scanner.render(onScanSuccess);
 
 </script>
 
