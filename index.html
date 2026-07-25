@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
 <title>Stock Scan</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
@@ -57,6 +61,14 @@
     position:absolute; inset:14%; border:2px solid var(--accent); border-radius:10px;
     box-shadow:0 0 0 999px rgba(0,0,0,.35); pointer-events:none;
   }
+  #start-overlay{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:#0c110d; z-index:5;
+  }
+  #start-overlay button{
+    padding:14px 22px; border-radius:12px; border:none; background:var(--accent);
+    color:#0b120c; font-weight:700; font-size:15px;
+  }
   #cam-toggle{
     position:absolute; bottom:10px; right:10px; background:rgba(0,0,0,.55); color:#fff;
     border:1px solid rgba(255,255,255,.2); border-radius:10px; padding:8px 12px; font-size:12px;
@@ -101,26 +113,6 @@
   #btn-in{background:var(--in);}
   #btn-out{background:var(--out); color:#1a0d07;}
   #status{font-size:12px; color:var(--dim); text-align:center; min-height:16px; margin-top:10px;}
-
-  #config{
-    position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
-    align-items:flex-end; justify-content:center; z-index:20;
-  }
-  #config.show{display:flex;}
-  #config .sheet{
-    background:var(--panel); border-top:1px solid var(--line); border-radius:18px 18px 0 0;
-    padding:20px; width:100%; max-width:480px;
-  }
-  #config label{font-size:12px; color:var(--dim); display:block; margin:10px 0 4px;}
-  #config input{
-    width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--text);
-    padding:11px 12px; border-radius:10px; font-size:14px;
-  }
-  #config button{
-    margin-top:16px; width:100%; padding:13px; border-radius:12px; border:none;
-    background:var(--accent); color:#0b120c; font-weight:700; font-size:15px;
-  }
-  #config p{font-size:12px; color:var(--dim); line-height:1.5;}
 </style>
 </head>
 <body>
@@ -134,6 +126,7 @@
   <div id="reader-wrap">
     <div id="reader"></div>
     <div id="scan-frame"></div>
+    <div id="start-overlay"><button onclick="userStart()">▶ Démarrer le scan</button></div>
     <button id="cam-toggle" onclick="switchCamera()">🔄 caméra</button>
   </div>
 
@@ -177,13 +170,48 @@
 
 <script>
 // ⚠️ Colle ici l'URL "/exec" obtenue après déploiement du Web App (Code.gs)
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwCgyKmv0oiSar8t49rBSzGVUvcvDTrNytAVxj7HwtymucyeqGxUrIoXEp5kfr5uFd2/exec";
+const SCRIPT_URL = "COLLE_ICI_TON_URL_APPS_SCRIPT";
 
 let USER = "";
 let currentCode = null;
 let currentQty = 0;
 let isNew = false;
 let html5Qr, cameras = [], camIndex = 0;
+let audioCtx = null;
+
+function unlockAudio(){
+  try{
+    if (!audioCtx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AC();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }catch(e){}
+}
+
+function playBeep(){
+  if (!audioCtx) return;
+  try{
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 1046.5;
+    const t = audioCtx.currentTime;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.35, t + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + 0.15);
+  }catch(e){}
+  if (navigator.vibrate) navigator.vibrate(60); // no-op sur iOS, actif sur Android
+}
+
+function userStart(){
+  unlockAudio();
+  document.getElementById('start-overlay').style.display = 'none';
+  startScanner();
+}
 
 function openWelcome(prefill){
   if (prefill) document.getElementById('welcome-input').value = USER;
@@ -196,6 +224,7 @@ function saveUser(){
   try{ localStorage.setItem('stockscan_user', USER); }catch(e){}
   document.getElementById('user-chip').textContent = '👤 ' + USER;
   document.getElementById('welcome').classList.remove('show');
+  userStart();
 }
 
 function setStatus(msg, isErr){
@@ -215,6 +244,7 @@ async function onScan(code){
     setStatus("URL Apps Script non configurée dans le code (SCRIPT_URL).", true); return;
   }
   if (code === currentCode) return; // évite les doubles scans identiques en rafale
+  playBeep();
   currentCode = code;
   setStatus("Recherche…");
   try{
@@ -302,6 +332,8 @@ async function startScanner(){
 async function runCamera(){
   const config = { fps: 12, qrbox: { width: 240, height: 160 } };
   await html5Qr.start(cameras[camIndex].id, config, onScan, ()=>{});
+  const v = document.querySelector('#reader video');
+  if (v){ v.setAttribute('playsinline', 'true'); v.setAttribute('webkit-playsinline', 'true'); v.muted = true; }
 }
 
 async function switchCamera(){
@@ -312,7 +344,6 @@ async function switchCamera(){
 }
 
 window.addEventListener('load', ()=>{
-  startScanner();
   try{ USER = localStorage.getItem('stockscan_user') || ""; }catch(e){}
   if (USER){
     document.getElementById('user-chip').textContent = '👤 ' + USER;
