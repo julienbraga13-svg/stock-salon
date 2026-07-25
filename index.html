@@ -29,6 +29,22 @@
     font-size:12px; color:var(--dim); background:var(--panel); border:1px solid var(--line);
     padding:6px 10px; border-radius:999px; cursor:pointer;
   }
+  #welcome{
+    position:fixed; inset:0; background:var(--bg); z-index:30;
+    display:none; align-items:center; justify-content:center; padding:24px;
+  }
+  #welcome.show{display:flex;}
+  #welcome .box{width:100%; max-width:360px; text-align:center;}
+  #welcome h2{font-size:20px; margin-bottom:6px;}
+  #welcome p{color:var(--dim); font-size:13px; margin-bottom:18px;}
+  #welcome input{
+    width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--text);
+    padding:13px 14px; border-radius:12px; font-size:16px; text-align:center;
+  }
+  #welcome button{
+    margin-top:12px; width:100%; padding:14px; border-radius:12px; border:none;
+    background:var(--accent); color:#0b120c; font-weight:700; font-size:15px;
+  }
   main{flex:1; padding:0 16px 16px; display:flex; flex-direction:column; gap:14px;}
 
   #reader-wrap{
@@ -111,7 +127,7 @@
 
 <header>
   <h1>Stock<span>Scan</span></h1>
-  <div id="user-chip" onclick="openConfig()">⚙ réglages</div>
+  <div id="user-chip" onclick="openWelcome(true)">⚙ réglages</div>
 </header>
 
 <main>
@@ -150,31 +166,36 @@
   </div>
 </main>
 
-<div id="config">
-  <div class="sheet">
-    <label>URL de l'Apps Script (Web App)</label>
-    <input id="cfg-url" placeholder="https://script.google.com/macros/s/AKfycbwCgyKmv0oiSar8t49rBSzGVUvcvDTrNytAVxj7HwtymucyeqGxUrIoXEp5kfr5uFd2/exec">
-    <label>Ton prénom (affiché dans l'historique)</label>
-    <input id="cfg-user" placeholder="Ex: Camille">
-    <button onclick="saveConfig()">Enregistrer</button>
-    <p>Ces infos restent uniquement dans cet onglet — à ressaisir si tu recharges la page.</p>
+<div id="welcome">
+  <div class="box">
+    <h2>Qui utilise l'appli ?</h2>
+    <p>Ton prénom est enregistré sur ce téléphone et ne te sera plus redemandé.</p>
+    <input id="welcome-input" placeholder="Ton prénom" autocomplete="off">
+    <button onclick="saveUser()">Continuer</button>
   </div>
 </div>
 
 <script>
-let SCRIPT_URL = "";
+// ⚠️ Colle ici l'URL "/exec" obtenue après déploiement du Web App (Code.gs)
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwCgyKmv0oiSar8t49rBSzGVUvcvDTrNytAVxj7HwtymucyeqGxUrIoXEp5kfr5uFd2/exec";
+
 let USER = "";
 let currentCode = null;
 let currentQty = 0;
 let isNew = false;
 let html5Qr, cameras = [], camIndex = 0;
 
-function openConfig(){ document.getElementById('config').classList.add('show'); }
-function saveConfig(){
-  SCRIPT_URL = document.getElementById('cfg-url').value.trim();
-  USER = document.getElementById('cfg-user').value.trim() || "inconnu";
-  document.getElementById('user-chip').textContent = USER ? ('👤 ' + USER) : '⚙ réglages';
-  document.getElementById('config').classList.remove('show');
+function openWelcome(prefill){
+  if (prefill) document.getElementById('welcome-input').value = USER;
+  document.getElementById('welcome').classList.add('show');
+}
+function saveUser(){
+  const val = document.getElementById('welcome-input').value.trim();
+  if (!val) return;
+  USER = val;
+  try{ localStorage.setItem('stockscan_user', USER); }catch(e){}
+  document.getElementById('user-chip').textContent = '👤 ' + USER;
+  document.getElementById('welcome').classList.remove('show');
 }
 
 function setStatus(msg, isErr){
@@ -190,7 +211,9 @@ function stepDelta(dir){
 }
 
 async function onScan(code){
-  if (!SCRIPT_URL){ openConfig(); return; }
+  if (!SCRIPT_URL || SCRIPT_URL.indexOf("COLLE_ICI") === 0){
+    setStatus("URL Apps Script non configurée dans le code (SCRIPT_URL).", true); return;
+  }
   if (code === currentCode) return; // évite les doubles scans identiques en rafale
   currentCode = code;
   setStatus("Recherche…");
@@ -288,7 +311,15 @@ async function switchCamera(){
   await runCamera();
 }
 
-window.addEventListener('load', ()=>{ startScanner(); openConfig(); });
+window.addEventListener('load', ()=>{
+  startScanner();
+  try{ USER = localStorage.getItem('stockscan_user') || ""; }catch(e){}
+  if (USER){
+    document.getElementById('user-chip').textContent = '👤 ' + USER;
+  } else {
+    openWelcome(false);
+  }
+});
 </script>
 </body>
 </html>
