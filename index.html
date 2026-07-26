@@ -7,7 +7,6 @@
 <script src="https://unpkg.com/@zxing/library@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
-  /* [Tes styles originaux conservés à l'identique] */
   * { box-sizing: border-box; }
   html, body { height: 100%; height: 100dvh; overflow: hidden; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f2f2f7; margin: 0; padding: 8px; color: #1c1c1e; display: flex; flex-direction: column; }
@@ -26,11 +25,13 @@
   .nav-btn[data-mode="commande"].active  { background: #ff9500; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(255,149,0,0.4); }
   .nav-btn[data-mode="analyse"].active   { background: #5856d6; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(88,86,214,0.4); }
   .nav-btn[data-mode="entree"].active    { background: #34c759; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(52,199,89,0.4); }
+  .nav-btn[data-mode="reception"].active { background: #af52de; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(175,82,222,0.4); }
 
   /* Scanner */
   .scanner-section { flex-shrink: 0; display: flex; flex-direction: column; }
   .mode-label { text-align: center; font-weight: 700; font-size: 13px; margin-bottom: 4px; color: #34c759; }
   .scanner-section.mode-sortie .mode-label { color: #ff3b30; }
+  .scanner-section.mode-reception .mode-label { color: #af52de; }
   #camera-select { display: none; width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #c6c6c8; font-size: 14px; margin-bottom: 6px; background: #fff; outline: none; }
   #video-container { width: 100%; height: 22vh; border-radius: 12px; overflow: hidden; background-color: #000; margin-bottom: 6px; position: relative; }
   video { width: 100%; height: 100%; display: block; object-fit: cover; }
@@ -38,6 +39,7 @@
   #flash-overlay.flash-active { opacity: 0.9; transition: none; }
   .scan-guide { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95%; height: 85%; border: 2px solid #34c759; border-radius: 8px; box-shadow: 0 0 0 2000px rgba(0,0,0,0.4); pointer-events: none; z-index: 5; }
   .scanner-section.mode-sortie .scan-guide { border-color: #ff3b30; }
+  .scanner-section.mode-reception .scan-guide { border-color: #af52de; }
   #flash-msg { text-align: center; font-weight: bold; color: #34c759; height: 18px; font-size: 13px; }
   .manual-row { display: flex; gap: 6px; margin-bottom: 8px; }
   .manual-row input { flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid #c6c6c8; font-size: 14px; }
@@ -160,7 +162,6 @@
         <button class="btn-small btn-ghost" onclick="showModal('modal-reglages')">⚙ Réglages</button>
       </div>
       
-      <!-- NOUVEAU : Zone Brouillons -->
       <fieldset id="brouillons-section" style="display:none;">
         <legend>Brouillons sauvegardés</legend>
         <table>
@@ -196,6 +197,31 @@
       </fieldset>
       <div class="send-row">
         <button id="send-btn" onclick="envoyerCommande()">Envoyer la commande (PDF par email)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vue Réception -->
+  <div class="view" id="view-reception">
+    <div class="stock-container">
+      <h2>Réception de commande par scan</h2>
+      <div class="field-row">
+        <div style="flex:2">
+          <label>Sélectionner la commande en cours</label>
+          <select id="select-cmd-reception" onchange="changerCommandeception()">
+            <option value="">-- Choisir une commande --</option>
+          </select>
+        </div>
+      </div>
+      <div id="reception-details" style="display:none; margin-top: 10px; display: flex; flex-direction: column; flex-grow: 1; min-height: 0;">
+        <p><strong>Fournisseur :</strong> <span id="rec-frs"></span></p>
+        <p class="muted">Scannez les articles pour valider leur réception un par un.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Article</th><th>Attendu</th><th>Reçu</th><th>Statut</th></tr></thead>
+            <tbody id="reception-items-body"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -246,6 +272,7 @@
   <button class="nav-btn" data-mode="sortie" onclick="switchMode('sortie')"><span class="ic">📤</span>Sortie</button>
   <button class="nav-btn" data-mode="stock" onclick="switchMode('stock')"><span class="ic">📊</span>Stock</button>
   <button class="nav-btn" data-mode="commande" onclick="switchMode('commande')"><span class="ic">🧾</span>Commande</button>
+  <button class="nav-btn" data-mode="reception" onclick="switchMode('reception')"><span class="ic">📥</span>Réception</button>
   <button class="nav-btn" data-mode="analyse" onclick="switchMode('analyse')"><span class="ic">📈</span>Analyse</button>
   <button class="nav-btn" data-mode="entree" onclick="switchMode('entree')"><span class="ic">📥</span>Entrée</button>
 </div>
@@ -289,7 +316,6 @@
       <legend>Fournisseur destinataire</legend>
       <label>Nom</label><input type="text" id="cfg-frs-nom">
       <label>Email</label><input type="text" id="cfg-frs-mail">
-      <!-- NOUVEAU : Champ Franco de port -->
       <label>Franco de port (€ TTC)</label><input type="number" id="cfg-frs-franco" min="0" step="0.01">
     </fieldset>
     <fieldset>
@@ -318,12 +344,12 @@
 // ================== CONFIG ==================
 const API_URL = 'https://script.google.com/macros/s/AKfycbyrH8_Qyma2r25rnMlgavbr6EVASPhgdgQkqGYQedUH0taFFvklPp41g8QRajropCd4/exec';
 
-// NOUVEAU : Ajout de brouillons au state
-let state = { produits: [], historique: [], config: {}, brouillons: [] };
+let state = { produits: [], historique: [], config: {}, brouillons: [], commandesEnCours: [] };
 let panier = [];
 let currentMode = 'entree';
 let dataLoaded = false;
 let consoChartInstance = null;
+let commandeEnCoursSelectionnee = null;
 
 // ================== SCANNER & CAMERAS ==================
 let codeReader, scannerRunning = false, candidateCode = null, candidateCount = 0;
@@ -402,6 +428,33 @@ function triggerFlash() { const o = document.getElementById('flash-overlay'); o.
 // ================== ROUTAGE & API ==================
 async function handleScannedCode(code) {
   if (!dataLoaded) { toast('Chargement en cours...'); return; }
+  
+  // GESTION MODE RECEPTION DE COMMANDE
+  if (currentMode === 'reception') {
+    if (!commandeEnCoursSelectionnee) { toast("Veuillez d'abord sélectionner une commande !"); return; }
+    
+    setGlobalLoading(true);
+    try {
+      const res = await apiPost('receptionnerArticleCmd', { idCommande: commandeEnCoursSelectionnee.id, codeBarre: code });
+      if (res.error) { toast('Erreur : ' + res.error); return; }
+      
+      toast('Article réceptionné ✔');
+      commandeEnCoursSelectionnee.contenu = res.contenu;
+      renderReceptionTable();
+      
+      if (res.toutRecu) {
+        toast('🎉 Commande entièrement réceptionnée !');
+        setTimeout(() => {
+          loadData();
+          document.getElementById('select-cmd-reception').value = '';
+          changerCommandeception();
+        }, 1500);
+      }
+    } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
+    return;
+  }
+
+  // GESTIONS MODES ENTREE / SORTIE
   const p = state.produits.find(x => x.codeBarre === String(code));
   if (currentMode === 'sortie' && !p) { toast("Article inconnu. Créez-le en mode Entrée."); return; }
   if (!p) { openModalNouveau(code); return; }
@@ -429,14 +482,19 @@ async function loadData() {
   try {
     const data = await apiGet('getData');
     if (data.error) throw new Error(data.error);
-    // NOUVEAU : Récupération des brouillons
-    state = { produits: data.produits || [], historique: data.historique || [], config: data.config || {}, brouillons: data.brouillons || [] };
+    state = { 
+      produits: data.produits || [], 
+      historique: data.historique || [], 
+      config: data.config || {}, 
+      brouillons: data.brouillons || [],
+      commandesEnCours: data.commandesEnCours || []
+    };
     dataLoaded = true;
     renderAll();
   } catch (err) { toast('Erreur: ' + err.message); } finally { setGlobalLoading(false); }
 }
 
-// ================== RENDUS (STOCK, ANALYSE...) ==================
+// ================== NAVIGATION & MODES ==================
 function switchMode(mode) {
   currentMode = mode;
   document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
@@ -444,24 +502,70 @@ function switchMode(mode) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   
   const sc = document.getElementById('scanner-section');
-  if (mode === 'entree' || mode === 'sortie') {
+  if (mode === 'entree' || mode === 'sortie' || mode === 'reception') {
     sc.style.display = 'flex';
     sc.classList.toggle('mode-sortie', mode === 'sortie');
-    document.getElementById('scanner-mode-label').textContent = mode === 'entree' ? 'Mode Entrée' : 'Mode Sortie';
+    sc.classList.toggle('mode-reception', mode === 'reception');
+    document.getElementById('scanner-mode-label').textContent = mode === 'entree' ? 'Mode Entrée' : (mode === 'sortie' ? 'Mode Sortie' : 'Mode Réception Commande');
     startScanner();
   } else { sc.style.display = 'none'; stopScanner(); }
 
   if (mode === 'stock') renderStock();
   if (mode === 'commande') { renderSuggestions(); renderManualSelect(); renderBrouillons(); }
+  if (mode === 'reception') { renderCommandesReceptionList(); }
   if (mode === 'analyse') renderAnalyse();
 }
 
 function renderAll() {
   renderStock(); renderHistorique('entree'); renderHistorique('sortie');
   renderSuggestions(); renderManualSelect(); renderConfigForm(); renderPanier(); renderBrouillons();
+  if (currentMode === 'reception') renderCommandesReceptionList();
   if (currentMode === 'analyse') renderAnalyse();
 }
 
+// ================== VUE RECEPTION ==================
+function renderCommandesReceptionList() {
+  const select = document.getElementById('select-cmd-reception');
+  const cmds = state.commandesEnCours || [];
+  select.innerHTML = '<option value="">-- Choisir une commande --</option>' + 
+    cmds.map(c => `<option value="${c.id}">${c.id} - ${c.fournisseur} (${formatDate(c.date)})</option>`).join('');
+    
+  if (commandeEnCoursSelectionnee) {
+    select.value = commandeEnCoursSelectionnee.id;
+  }
+}
+
+function changerCommandeception() {
+  const id = document.getElementById('select-cmd-reception').value;
+  const detailsDiv = document.getElementById('reception-details');
+  if (!id) {
+    commandeEnCoursSelectionnee = null;
+    detailsDiv.style.display = 'none';
+    return;
+  }
+  commandeEnCoursSelectionnee = state.commandesEnCours.find(c => c.id === id);
+  if (commandeEnCoursSelectionnee) {
+    document.getElementById('rec-frs').textContent = commandeEnCoursSelectionnee.fournisseur;
+    detailsDiv.style.display = 'flex';
+    renderReceptionTable();
+  }
+}
+
+function renderReceptionTable() {
+  if (!commandeEnCoursSelectionnee) return;
+  const tbody = document.getElementById('reception-items-body');
+  tbody.innerHTML = commandeEnCoursSelectionnee.contenu.map(item => {
+    const complet = item.qteRecue >= item.qte;
+    return `<tr style="${complet ? 'background: #e8f5e9;' : ''}">
+      <td>${escapeHtml(item.designation)}<br><span class="muted">${item.codeBarre}</span></td>
+      <td>${item.qte}</td>
+      <td><strong>${item.qteRecue}</strong></td>
+      <td>${complet ? '✅ Reçu' : '⏳ En attente'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ================== RENDUS STOCK, ANALYSE & COMMANDES ==================
 function renderStock() {
   const tbody = document.getElementById('stock-body');
   const filter = document.getElementById('stock-search').value.trim().toLowerCase();
@@ -532,7 +636,6 @@ function renderChart(topList) {
   });
 }
 
-// ================== NOUVEAU : BROUILLONS & FRANCO ==================
 function renderBrouillons() {
   const sec = document.getElementById('brouillons-section');
   const tbody = document.getElementById('brouillons-body');
@@ -567,7 +670,7 @@ function chargerBrouillon(id) {
   if (panier.length > 0 && !confirm("Écraser le panier en cours ?")) return;
   panier = b.contenu;
   renderPanier();
-  supprimerBrouillon(id); // On supprime le brouillon une fois rechargé
+  supprimerBrouillon(id);
 }
 
 async function supprimerBrouillon(id) {
@@ -584,14 +687,13 @@ async function envoyerCommande() {
   const c = state.config || {};
   if (!c.fournisseurEmail) { toast("Email du fournisseur non configuré !"); return; }
   
-  // NOUVEAU : Vérification Franco de port
   let total = 0;
   panier.forEach(a => { total += (a.qte * (a.prixAchat || 0)); });
   const franco = Number(c.fournisseurFranco) || 0;
   
   if (franco > 0 && total < franco) {
     if (!confirm(`Attention, le Franco de port (${franco}€ TTC) n'est pas atteint (Actuel: ${total.toFixed(2)}€ TTC).\n\nVoulez-vous quand même envoyer la commande ?`)) {
-      return; // Annulation de l'envoi
+      return;
     }
   }
 
@@ -600,13 +702,13 @@ async function envoyerCommande() {
   try {
     const res = await apiPost('sendOrder', { panier, config: c });
     if (res.error) throw new Error(res.error);
-    toast('Commande envoyée avec succès ✔');
+    toast('Commande envoyée ✔');
     panier = []; renderPanier();
+    await loadData();
   } catch (e) { toast('Erreur : ' + e.message); } 
   finally { setGlobalLoading(false); document.getElementById('send-btn').disabled = false; }
 }
 
-// ================== FONCTIONS CORRIGEES MANQUANTES ==================
 async function submitAjust() {
   const code = document.getElementById('modal-ajust').dataset.code;
   const qte = Number(document.getElementById('adj-qty').value);
@@ -628,7 +730,7 @@ async function submitReglages() {
     siret: document.getElementById('cfg-siret').value, adresse: document.getElementById('cfg-adresse').value,
     mail: document.getElementById('cfg-mail').value, tel: document.getElementById('cfg-tel').value,
     fournisseurNom: document.getElementById('cfg-frs-nom').value, fournisseurEmail: document.getElementById('cfg-frs-mail').value,
-    fournisseurFranco: document.getElementById('cfg-frs-franco').value // NOUVEAU
+    fournisseurFranco: document.getElementById('cfg-frs-franco').value
   };
   closeModal('modal-reglages');
   setGlobalLoading(true);
@@ -648,7 +750,6 @@ async function applySeuil(code, seuil) {
   } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
 }
 
-// ================== UTILITAIRES / DIVERS ==================
 function renderHistorique(mode) {
   const type = mode === 'entree' ? 'Entrée' : 'Sortie';
   const list = state.historique.filter(h => h.type === type).slice(0, 50);
@@ -689,7 +790,7 @@ function renderConfigForm() {
   setVal('cfg-nom', c.nom); setVal('cfg-representant', c.representant); setVal('cfg-siret', c.siret);
   setVal('cfg-adresse', c.adresse); setVal('cfg-mail', c.mail); setVal('cfg-tel', c.tel);
   setVal('cfg-frs-nom', c.fournisseurNom); setVal('cfg-frs-mail', c.fournisseurEmail);
-  setVal('cfg-frs-franco', c.fournisseurFranco); // NOUVEAU
+  setVal('cfg-frs-franco', c.fournisseurFranco);
   
   const frsDisplay = document.getElementById('frs-display');
   if (frsDisplay) frsDisplay.textContent = c.fournisseurNom ? c.fournisseurNom + ' (' + (c.fournisseurEmail||'—') + ')' : 'non configuré';
