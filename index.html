@@ -535,8 +535,14 @@ async function loadData() {
     setGlobalLoading(false);
     if (data.error) { showErrorBanner('Erreur script : ' + data.error); return; }
     hideErrorBanner();
-    state = data;
-    if (!state.config) state.config = {}; 
+    
+    // Sécurité maximale : si le serveur renvoie un tableau ou oublie config, on sécurise
+    state = {
+      produits: data.produits || [],
+      historique: data.historique || [],
+      config: (data.config && !Array.isArray(data.config)) ? data.config : {}
+    };
+
     dataLoaded = true;
     renderAll();
   } catch (err) {
