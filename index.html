@@ -649,18 +649,28 @@ function renderManualSelect() {
 }
 
 function renderConfigForm() {
-  const c = state.config || {};
-  document.getElementById('cfg-nom').value = c.nom || '';
-  document.getElementById('cfg-representant').value = c.representant || '';
-  document.getElementById('cfg-siret').value = c.siret || '';
-  document.getElementById('cfg-adresse').value = c.adresse || '';
-  document.getElementById('cfg-mail').value = c.mail || '';
-  document.getElementById('cfg-tel').value = c.tel || '';
-  document.getElementById('cfg-frs-nom').value = c.fournisseurNom || '';
-  document.getElementById('cfg-frs-mail').value = c.fournisseurEmail || '';
-  document.getElementById('frs-display').textContent = c.fournisseurNom
-    ? c.fournisseurNom + ' (' + (c.fournisseurEmail || '—') + ')'
-    : 'non configuré';
+  const c = (state && state.config) ? state.config : {};
+  
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val || '';
+  };
+
+  setVal('cfg-nom', c.nom);
+  setVal('cfg-representant', c.representant);
+  setVal('cfg-siret', c.siret);
+  setVal('cfg-adresse', c.adresse);
+  setVal('cfg-mail', c.mail);
+  setVal('cfg-tel', c.tel);
+  setVal('cfg-frs-nom', c.fournisseurNom);
+  setVal('cfg-frs-mail', c.fournisseurEmail);
+
+  const frsDisplay = document.getElementById('frs-display');
+  if (frsDisplay) {
+    frsDisplay.textContent = c.fournisseurNom
+      ? c.fournisseurNom + ' (' + (c.fournisseurEmail || '—') + ')'
+      : 'non configuré';
+  }
 }
 
 function renderPanier() {
