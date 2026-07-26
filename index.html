@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Douchette iOS - Prétraitement</title>
     
-    <!-- On utilise html5-qrcode pour son moteur d'analyse d'images fixes -->
     <script src="https://unpkg.com/html5-qrcode"></script>
     
     <style>
@@ -36,7 +35,6 @@
             cursor: pointer;
             box-sizing: border-box;
         }
-        /* Cache l'input fichier classique */
         #file-input { display: none; }
 
         .stock-container {
@@ -73,22 +71,17 @@
         .processing { color: #007aff; }
         .error { color: #ff3b30; }
         
-        /* Canvas invisible pour le traitement */
         #processing-canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <h1>📦 Douchette iOS Pro</h1>
+    <h1>📦 Douchette iOS Pro1</h1>
     
-    <!-- Bouton qui va déclencher l'appareil photo natif -->
     <label for="file-input" class="btn">📸 Prendre Photo & Scanner</label>
-    
     <input type="file" id="file-input" accept="image/*" capture="environment">
 
     <div id="status"></div>
-    
-    <!-- Canvas caché -->
     <canvas id="processing-canvas"></canvas>
 
     <div class="stock-container">
@@ -113,7 +106,6 @@
         const canvas = document.getElementById('processing-canvas');
         const ctx = canvas.getContext('2d');
 
-        // Initialisation de la bibliothèque en mode virtuel (on n'affiche pas de vidéo)
         const html5QrCode = new Html5Qrcode("processing-canvas");
 
         fileInput.addEventListener('change', function(e) {
@@ -129,12 +121,13 @@
 
         function processImage(file) {
             const reader = new FileReader();
+            
             reader.onload = function(event) {
                 const img = new Image();
+                
                 img.onload = function() {
-                    // --- ÉTAPE 1 : Redimensionnement (Downscaling) ---
-                    // L'iPhone prend une photo énorme. On la réduit pour le navigateur.
-                    const MAX_WIDTH = 1000; // Une largeur de 1000px suffit largement
+                    // 1. Redimensionnement
+                    const MAX_WIDTH = 1000; 
                     let width = img.width;
                     let height = img.height;
 
@@ -145,57 +138,53 @@
 
                     canvas.width = width;
                     canvas.height = height;
-
-                    // Dessine l'image redimensionnée sur le canvas
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // --- ÉTAPE 2 : Traitement d'image (Grayscale & Contrast) ---
-                    statusIndicator.textContent = "Nettoyage microscopique du code...";
+                    // 2. Traitement d'image (Contraste)
+                    statusIndicator.textContent = "Nettoyage du code...";
                     const imageData = ctx.getImageData(0, 0, width, height);
                     const data = imageData.data;
 
                     for (let i = 0; i < data.length; i += 4) {
-                        // Conversion en niveaux de gris (luminosité)
                         const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                        
-                        // Augmentation agressive du contraste (Binarisation soft)
-                        // Si le pixel est plutôt clair, on le rend blanc, si plutôt noir, on le rend noir
                         const threshold = 128;
                         const contrasted = avg > threshold ? 255 : 0;
-
-                        data[i]     = contrasted; // R
-                        data[i + 1] = contrasted; // G
-                        data[i + 2] = contrasted; // B
-                        // data[i+3] est l'alpha (transparence), on n'y touche pas
+                        data[i]     = contrasted;
+                        data[i + 1] = contrasted;
+                        data[i + 2] = contrasted;
                     }
                     ctx.putImageData(imageData, 0, 0);
 
-                    // --- ÉTAPE 3 : Analyse du code ---
+                    // 3. Analyse
                     statusIndicator.textContent = "Analyse finale...";
                     
-                    // On convertit le canvas traité en un Blob (fichier virtuel) pour la bibliothèque
                     canvas.toBlob(function(blob) {
-                        html5QrCode.scanFile(blob, true)
+                        // Création d'un véritable objet File pour éviter les erreurs de lecture
+                        const processedFile = new File([blob], "image-nettoyee.jpg", { type: "image/jpeg" });
+                        
+                        html5QrCode.scanFile(processedFile, true)
                             .then(decodedText => {
                                 statusIndicator.style.display = 'none';
                                 ajouterAuStock(decodedText);
                                 if (navigator.vibrate) navigator.vibrate(200);
-                                fileInput.value = ""; // Reset
+                                fileInput.value = ""; 
                             })
                             .catch(err => {
-                                statusIndicator.textContent = "Aucun code détecté. Assurez-vous d'avoir pris la photo à ~15cm et bien horizontalement.";
+                                statusIndicator.textContent = "Aucun code détecté. Réessayez avec une lumière bien directe.";
                                 statusIndicator.className = "error";
-                                fileInput.value = ""; // Reset
+                                fileInput.value = ""; 
                             });
-                    }, 'image/jpeg', 0.9); // JPEG de haute qualité pour l'analyse
+                    }, 'image/jpeg', 0.9);
                 };
-                img.src = event.target.files[0].result;
+                
+                // LE BUG ETAIT ICI. C'est corrigé :
+                img.src = event.target.result;
             };
+            
             reader.readAsDataURL(file);
         }
 
         function ajouterAuStock(code) {
-            // Nettoyage sommaire si besoin (certains codes contiennent des espaces)
             code = code.trim();
             if (stock[code]) {
                 stock[code]++;
