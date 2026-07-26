@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Douchette iOS - Ultra Sécurisée</title>
+    <title>Douchette iOS - Compacte</title>
     
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     
@@ -12,51 +12,63 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: #f2f2f7;
             margin: 0;
-            padding: 15px;
+            padding: 10px;
             color: #1c1c1e;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow: hidden; /* Empêche le scroll global de la page */
         }
         h1 {
-            font-size: 20px;
+            font-size: 18px;
             text-align: center;
-            margin-top: 0;
+            margin: 0 0 8px 0;
         }
+        /* Conteneur vidéo réduit au 1/3 supérieur */
         #video-container {
             width: 100%;
+            height: 25vh; /* Hauteur fixe d'environ 1/4 à 1/3 de l'écran */
             border-radius: 12px;
             overflow: hidden;
             background-color: #000;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
             position: relative;
+            flex-shrink: 0;
         }
         video {
             width: 100%;
+            height: 100%;
             display: block;
-            object-fit: cover;
+            object-fit: cover; /* Remplit le bloc proprement */
         }
         .scan-guide {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 80%;
-            height: 100px;
+            width: 75%;
+            height: 50px; /* Guide plus compact adapté à la petite hauteur */
             border: 2px solid #34c759;
-            border-radius: 8px;
-            box-shadow: 0 0 0 4000px rgba(0,0,0,0.5);
+            border-radius: 6px;
+            box-shadow: 0 0 0 2000px rgba(0,0,0,0.5);
             pointer-events: none;
+        }
+        .controls {
+            flex-shrink: 0;
         }
         .btn {
             display: block;
             width: 100%;
-            padding: 15px;
+            padding: 10px;
             border: none;
-            border-radius: 10px;
-            font-size: 16px;
+            border-radius: 8px;
+            font-size: 15px;
             font-weight: 600;
             color: white;
             background-color: #007aff;
             text-align: center;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             cursor: pointer;
             box-sizing: border-box;
         }
@@ -64,66 +76,93 @@
             background-color: #ff3b30;
             display: none;
         }
-        .stock-container {
-            background: white;
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        th, td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #c6c6c8;
-        }
-        th { font-weight: 600; color: #8e8e93; font-size: 14px; }
-        .badge {
-            background-color: #34c759;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 14px;
-            font-weight: bold;
-        }
         #flash-msg {
             text-align: center;
             font-weight: bold;
             color: #34c759;
-            height: 24px;
-            margin-bottom: 10px;
+            height: 20px;
+            font-size: 14px;
+            margin-bottom: 5px;
+            flex-shrink: 0;
+        }
+        /* Conteneur de stock flexible avec scroll interne si la liste grandit */
+        .stock-container {
+            background: white;
+            border-radius: 12px;
+            padding: 10px 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .stock-container h2 {
+            font-size: 16px;
+            margin: 0 0 8px 0;
+            flex-shrink: 0;
+        }
+        .table-scroll {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px 10px;
+            text-align: left;
+            border-bottom: 1px solid #c6c6c8;
+        }
+        th { 
+            font-weight: 600; 
+            color: #8e8e93; 
+            font-size: 13px; 
+            position: sticky;
+            top: 0;
+            background: white;
+        }
+        .badge {
+            background-color: #34c759;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
 
-    <h1>📦 Douchette iOS Sécurisée</h1>
+    <h1>📦 Douchette Compacte</h1>
     
-    <button id="btn-start" class="btn">Démarrer la douchette</button>
-    <button id="btn-stop" class="btn btn-stop">Arrêter la caméra</button>
-
-    <div id="flash-msg"></div>
-
+    <!-- Vidéo réduite au 1/3 supérieur -->
     <div id="video-container">
         <video id="video" playsinline autoplay muted></video>
         <div class="scan-guide" id="scan-guide" style="display:none;"></div>
     </div>
 
+    <div class="controls">
+        <button id="btn-start" class="btn">Démarrer la douchette</button>
+        <button id="btn-stop" class="btn btn-stop">Arrêter la caméra</button>
+    </div>
+
+    <div id="flash-msg"></div>
+
     <div class="stock-container">
         <h2>Inventaire</h2>
-        <table id="stock-table">
-            <thead>
-                <tr>
-                    <th>Code Barre</th>
-                    <th>Quantité</th>
-                </tr>
-            </thead>
-            <tbody id="stock-body">
-            </tbody>
-        </table>
+        <div class="table-scroll">
+            <table id="stock-table">
+                <thead>
+                    <tr>
+                        <th>Code Barre</th>
+                        <th>Quantité</th>
+                    </tr>
+                </thead>
+                <tbody id="stock-body">
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script>
@@ -180,7 +219,6 @@
                         candidateCount = 1; 
                     }
 
-                    // Exige 3 lectures identiques d'affilée pour valider le code
                     if (candidateCount >= 3) { 
                         lastValidatedCode = rawCode;
                         lastValidatedTime = currentTime;
