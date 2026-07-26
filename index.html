@@ -7,6 +7,7 @@
 <script src="https://unpkg.com/@zxing/library@latest"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
+  /* [Tes styles originaux conservés à l'identique] */
   * { box-sizing: border-box; }
   html, body { height: 100%; height: 100dvh; overflow: hidden; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f2f2f7; margin: 0; padding: 8px; color: #1c1c1e; display: flex; flex-direction: column; }
@@ -66,7 +67,7 @@
   #view-commande .stock-container { overflow-y: auto; }
   .fournisseur-bar { display: flex; justify-content: space-between; align-items: center; background: #fff7ec; border: 1px solid #ffe2b3; border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; font-size: 12px; }
   fieldset { border: 1px solid #e5e5ea; border-radius: 10px; margin: 0 0 10px 0; padding: 8px 10px; }
-  legend { font-size: 13px; font-weight: 700; color: #3c3c43; padding: 0 4px; }
+  legend { font-size: 13px; font-weight: 700; color: #3c3c43; padding: 0 4px; display: flex; justify-content: space-between; align-items: center; width: 100%; }
   .field-row { display: flex; gap: 6px; margin-bottom: 6px; }
   .field-row > div { flex: 1; }
   label { display: block; font-size: 11px; color: #8e8e93; margin-bottom: 2px; }
@@ -158,6 +159,15 @@
         <span>Fournisseur : <strong id="frs-display">non configuré</strong></span>
         <button class="btn-small btn-ghost" onclick="showModal('modal-reglages')">⚙ Réglages</button>
       </div>
+      
+      <!-- NOUVEAU : Zone Brouillons -->
+      <fieldset id="brouillons-section" style="display:none;">
+        <legend>Brouillons sauvegardés</legend>
+        <table>
+          <tbody id="brouillons-body"></tbody>
+        </table>
+      </fieldset>
+
       <fieldset>
         <legend>Suggestions (sous le seuil critique)</legend>
         <table>
@@ -174,7 +184,10 @@
         <button class="btn-small btn-green" onclick="addManualToPanier()">Ajouter au panier</button>
       </fieldset>
       <fieldset>
-        <legend>Panier</legend>
+        <legend>
+          Panier
+          <button class="btn-small btn-ghost" onclick="sauvegarderBrouillon()" style="margin-left:auto;">💾 Sauvegarder (brouillon)</button>
+        </legend>
         <table>
           <thead><tr><th>Article</th><th>Qté</th><th>Total</th><th></th></tr></thead>
           <tbody id="panier-body"></tbody>
@@ -276,6 +289,8 @@
       <legend>Fournisseur destinataire</legend>
       <label>Nom</label><input type="text" id="cfg-frs-nom">
       <label>Email</label><input type="text" id="cfg-frs-mail">
+      <!-- NOUVEAU : Champ Franco de port -->
+      <label>Franco de port (€)</label><input type="number" id="cfg-frs-franco" min="0" step="0.01">
     </fieldset>
     <fieldset>
       <legend>Mes coordonnées (entête)</legend>
@@ -303,7 +318,8 @@
 // ================== CONFIG ==================
 const API_URL = 'https://script.google.com/macros/s/AKfycbyrH8_Qyma2r25rnMlgavbr6EVASPhgdgQkqGYQedUH0taFFvklPp41g8QRajropCd4/exec';
 
-let state = { produits: [], historique: [], config: {} };
+// NOUVEAU : Ajout de brouillons au state
+let state = { produits: [], historique: [], config: {}, brouillons: [] };
 let panier = [];
 let currentMode = 'entree';
 let dataLoaded = false;
@@ -413,7 +429,8 @@ async function loadData() {
   try {
     const data = await apiGet('getData');
     if (data.error) throw new Error(data.error);
-    state = { produits: data.produits || [], historique: data.historique || [], config: data.config || {} };
+    // NOUVEAU : Récupération des brouillons
+    state = { produits: data.produits || [], historique: data.historique || [], config: data.config || {}, brouillons: data.brouillons || [] };
     dataLoaded = true;
     renderAll();
   } catch (err) { toast('Erreur: ' + err.message); } finally { setGlobalLoading(false); }
@@ -435,13 +452,13 @@ function switchMode(mode) {
   } else { sc.style.display = 'none'; stopScanner(); }
 
   if (mode === 'stock') renderStock();
-  if (mode === 'commande') { renderSuggestions(); renderManualSelect(); }
+  if (mode === 'commande') { renderSuggestions(); renderManualSelect(); renderBrouillons(); }
   if (mode === 'analyse') renderAnalyse();
 }
 
 function renderAll() {
   renderStock(); renderHistorique('entree'); renderHistorique('sortie');
-  renderSuggestions(); renderManualSelect(); renderConfigForm(); renderPanier();
+  renderSuggestions(); renderManualSelect(); renderConfigForm(); renderPanier(); renderBrouillons();
   if (currentMode === 'analyse') renderAnalyse();
 }
 
@@ -515,11 +532,69 @@ function renderChart(topList) {
   });
 }
 
-// ================== FONCTIONS CORRIGEES MANQUANTES ==================
+// ================== NOUVEAU : BROUILLONS & FRANCO ==================
+function renderBrouillons() {
+  const sec = document.getElementById('brouillons-section');
+  const tbody = document.getElementById('brouillons-body');
+  if (!state.brouillons || state.brouillons.length === 0) {
+    sec.style.display = 'none'; return;
+  }
+  sec.style.display = 'block';
+  tbody.innerHTML = state.brouillons.map(b => `<tr>
+    <td>Brouillon du ${formatDate(b.date)}<br><span class="muted">${b.contenu.length} articles</span></td>
+    <td style="text-align:right;">
+      <button class="btn-small btn-green" onclick="chargerBrouillon('${b.id}')">Ouvrir</button>
+      <button class="btn-small btn-red" onclick="supprimerBrouillon('${b.id}')">✕</button>
+    </td>
+  </tr>`).join('');
+}
+
+async function sauvegarderBrouillon() {
+  if (panier.length === 0) { toast("Le panier est vide"); return; }
+  setGlobalLoading(true);
+  try {
+    const res = await apiPost('savePanier', { panier });
+    if (res.error) throw new Error(res.error);
+    toast('Brouillon sauvegardé ✔');
+    panier = []; 
+    await loadData();
+  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
+}
+
+function chargerBrouillon(id) {
+  const b = state.brouillons.find(x => x.id === id);
+  if (!b) return;
+  if (panier.length > 0 && !confirm("Écraser le panier en cours ?")) return;
+  panier = b.contenu;
+  renderPanier();
+  supprimerBrouillon(id); // On supprime le brouillon une fois rechargé
+}
+
+async function supprimerBrouillon(id) {
+  setGlobalLoading(true);
+  try {
+    const res = await apiPost('deletePanier', { id });
+    if (res.error) throw new Error(res.error);
+    await loadData();
+  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
+}
+
 async function envoyerCommande() {
   if (panier.length === 0) { toast("Le panier est vide"); return; }
   const c = state.config || {};
   if (!c.fournisseurEmail) { toast("Email du fournisseur non configuré !"); return; }
+  
+  // NOUVEAU : Vérification Franco de port
+  let total = 0;
+  panier.forEach(a => { total += (a.qte * (a.prixAchat || 0)); });
+  const franco = Number(c.fournisseurFranco) || 0;
+  
+  if (franco > 0 && total < franco) {
+    if (!confirm(`Attention, le Franco de port (${franco}€) n'est pas atteint (Actuel: ${total.toFixed(2)}€).\n\nVoulez-vous quand même envoyer la commande ?`)) {
+      return; // Annulation de l'envoi
+    }
+  }
+
   setGlobalLoading(true);
   document.getElementById('send-btn').disabled = true;
   try {
@@ -531,6 +606,7 @@ async function envoyerCommande() {
   finally { setGlobalLoading(false); document.getElementById('send-btn').disabled = false; }
 }
 
+// ================== FONCTIONS CORRIGEES MANQUANTES ==================
 async function submitAjust() {
   const code = document.getElementById('modal-ajust').dataset.code;
   const qte = Number(document.getElementById('adj-qty').value);
@@ -551,7 +627,8 @@ async function submitReglages() {
     nom: document.getElementById('cfg-nom').value, representant: document.getElementById('cfg-representant').value,
     siret: document.getElementById('cfg-siret').value, adresse: document.getElementById('cfg-adresse').value,
     mail: document.getElementById('cfg-mail').value, tel: document.getElementById('cfg-tel').value,
-    fournisseurNom: document.getElementById('cfg-frs-nom').value, fournisseurEmail: document.getElementById('cfg-frs-mail').value
+    fournisseurNom: document.getElementById('cfg-frs-nom').value, fournisseurEmail: document.getElementById('cfg-frs-mail').value,
+    fournisseurFranco: document.getElementById('cfg-frs-franco').value // NOUVEAU
   };
   closeModal('modal-reglages');
   setGlobalLoading(true);
@@ -612,6 +689,8 @@ function renderConfigForm() {
   setVal('cfg-nom', c.nom); setVal('cfg-representant', c.representant); setVal('cfg-siret', c.siret);
   setVal('cfg-adresse', c.adresse); setVal('cfg-mail', c.mail); setVal('cfg-tel', c.tel);
   setVal('cfg-frs-nom', c.fournisseurNom); setVal('cfg-frs-mail', c.fournisseurEmail);
+  setVal('cfg-frs-franco', c.fournisseurFranco); // NOUVEAU
+  
   const frsDisplay = document.getElementById('frs-display');
   if (frsDisplay) frsDisplay.textContent = c.fournisseurNom ? c.fournisseurNom + ' (' + (c.fournisseurEmail||'—') + ')' : 'non configuré';
 }
