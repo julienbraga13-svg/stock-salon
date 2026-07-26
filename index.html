@@ -141,7 +141,7 @@
       <input type="text" id="stock-search" placeholder="Rechercher (nom ou code)..." oninput="renderStock()">
       <div class="stock-summary" id="stock-summary">
         <span>Quantité totale : <span id="tot-qty">0</span></span>
-        <span>Valeur : <span id="tot-val">0.00 €</span></span>
+        <span>Valeur : <span id="tot-val">0.00 € TTC</span></span>
       </div>
       <div class="table-scroll">
         <table>
@@ -192,7 +192,7 @@
           <thead><tr><th>Article</th><th>Qté</th><th>Total</th><th></th></tr></thead>
           <tbody id="panier-body"></tbody>
         </table>
-        <div class="panier-total-row"><span>Total</span><span id="panier-total">0.00 €</span></div>
+        <div class="panier-total-row"><span>Total</span><span id="panier-total">0.00 € TTC</span></div>
       </fieldset>
       <div class="send-row">
         <button id="send-btn" onclick="envoyerCommande()">Envoyer la commande (PDF par email)</button>
@@ -257,7 +257,7 @@
     <label>Code barre</label><input type="text" id="new-code" placeholder="Saisir ou scanner un code">
     <label>Désignation</label><input type="text" id="new-designation" placeholder="Nom du produit">
     <label>Quantité initiale</label><input type="number" id="new-qte" min="0" value="0">
-    <label>Prix d'achat (€)</label><input type="number" id="new-prix" min="0" step="0.01" value="0">
+    <label>Prix d'achat (€ TTC)</label><input type="number" id="new-prix" min="0" step="0.01" value="0">
     <label>Contenance</label><input type="text" id="new-contenance" placeholder="ex: carton de 12">
     <label>Seuil critique</label><input type="number" id="new-seuil" min="0" value="0">
     <div class="modal-actions">
@@ -272,7 +272,7 @@
     <h3>Modifier l'article</h3>
     <p id="adj-info" class="muted"></p>
     <label>Nouvelle quantité</label><input type="number" id="adj-qty" min="0">
-    <label>Prix d'achat (€)</label><input type="number" id="adj-prix" min="0" step="0.01">
+    <label>Prix d'achat (€ TTC)</label><input type="number" id="adj-prix" min="0" step="0.01">
     <label>Seuil critique</label><input type="number" id="adj-seuil" min="0">
     <label>Motif de l'ajustement</label><input type="text" id="adj-comment" placeholder="ex: inventaire physique...">
     <div class="modal-actions">
@@ -290,7 +290,7 @@
       <label>Nom</label><input type="text" id="cfg-frs-nom">
       <label>Email</label><input type="text" id="cfg-frs-mail">
       <!-- NOUVEAU : Champ Franco de port -->
-      <label>Franco de port (€)</label><input type="number" id="cfg-frs-franco" min="0" step="0.01">
+      <label>Franco de port (€ TTC)</label><input type="number" id="cfg-frs-franco" min="0" step="0.01">
     </fieldset>
     <fieldset>
       <legend>Mes coordonnées (entête)</legend>
@@ -474,14 +474,14 @@ function renderStock() {
     totalItems += p.qte; totalValue += v;
     return `<tr class="${p.qte <= p.seuil ? 'row-alert' : ''}">
       <td>${escapeHtml(p.designation)}<br><span class="muted">${escapeHtml(p.codeBarre)}</span></td>
-      <td>${p.qte}<br><span class="muted">${v.toFixed(2)}€</span></td>
-      <td>${p.seuil}</td><td>${p.prixAchat.toFixed(2)}€</td>
+      <td>${p.qte}<br><span class="muted">${v.toFixed(2)}€ TTC</span></td>
+      <td>${p.seuil}</td><td>${p.prixAchat.toFixed(2)}€ TTC</td>
       <td><button class="btn-small btn-ghost" onclick="openModalAjust('${p.codeBarre}')">Ajuster</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" class="muted">Aucun article</td></tr>';
 
   document.getElementById('tot-qty').textContent = totalItems;
-  document.getElementById('tot-val').textContent = totalValue.toFixed(2) + ' €';
+  document.getElementById('tot-val').textContent = totalValue.toFixed(2) + ' € TTC';
 }
 
 function renderAnalyse() {
@@ -590,7 +590,7 @@ async function envoyerCommande() {
   const franco = Number(c.fournisseurFranco) || 0;
   
   if (franco > 0 && total < franco) {
-    if (!confirm(`Attention, le Franco de port (${franco}€) n'est pas atteint (Actuel: ${total.toFixed(2)}€).\n\nVoulez-vous quand même envoyer la commande ?`)) {
+    if (!confirm(`Attention, le Franco de port (${franco}€ TTC) n'est pas atteint (Actuel: ${total.toFixed(2)}€ TTC).\n\nVoulez-vous quand même envoyer la commande ?`)) {
       return; // Annulation de l'envoi
     }
   }
@@ -699,9 +699,9 @@ function renderPanier() {
   let total = 0;
   document.getElementById('panier-body').innerHTML = panier.map((a, i) => {
     const t = a.qte * a.prixAchat; total += t;
-    return `<tr><td>${escapeHtml(a.designation)}</td><td><input type="number" min="1" value="${a.qte}" class="qty-input" onchange="updatePanierQty(${i}, this.value)"></td><td>${t.toFixed(2)}€</td><td><button class="btn-small btn-red" onclick="removeFromPanier(${i})">✕</button></td></tr>`;
+    return `<tr><td>${escapeHtml(a.designation)}</td><td><input type="number" min="1" value="${a.qte}" class="qty-input" onchange="updatePanierQty(${i}, this.value)"></td><td>${t.toFixed(2)}€ TTC</td><td><button class="btn-small btn-red" onclick="removeFromPanier(${i})">✕</button></td></tr>`;
   }).join('') || '<tr><td colspan="4" class="muted">Panier vide</td></tr>';
-  document.getElementById('panier-total').textContent = total.toFixed(2) + ' €';
+  document.getElementById('panier-total').textContent = total.toFixed(2) + ' € TTC';
 }
 
 function addToPanier(code) {
