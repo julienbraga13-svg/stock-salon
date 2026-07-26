@@ -485,10 +485,25 @@ async function updateCameraList() {
 
 function switchCamera(deviceId) {
   selectedDeviceId = deviceId;
-  // Sauvegarde le choix dans la mémoire du téléphone
   localStorage.setItem('preferredCamera', deviceId);
+  
+  // 1. On arrête le scanner en cours
   stopScanner();
-  startScanner();
+  
+  // 2. Astuce pour iPhone : on force la libération de la vidéo
+  const videoEl = document.getElementById('video');
+  if (videoEl && videoEl.srcObject) {
+    videoEl.srcObject.getTracks().forEach(track => track.stop());
+    videoEl.srcObject = null;
+  }
+  
+  // 3. On ajoute un court délai pour laisser Safari nettoyer la mémoire
+  setTimeout(() => {
+    // 4. On recrée une instance toute neuve du lecteur ZXing
+    setupReader(); 
+    // 5. On relance le scanner
+    startScanner();
+  }, 300); // 300 millisecondes de pause suffisent
 }
 
 function startScanner() {
