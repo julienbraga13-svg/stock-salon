@@ -771,6 +771,7 @@ async function loadData(silent = false) {
     }
 
     renderAll();
+    refreshCalendrierSiOuvert();
   } catch (err) { 
     if (!silent) toast('Erreur: ' + err.message); 
   } finally { 
@@ -1003,6 +1004,24 @@ function renderStock() {
 // ================== CALENDRIER DE CONSOMMATION ==================
 let calendrierConso = null; // { codeBarre: { annee: [12 valeurs] } }
 let calendrierYears = [];
+
+async function refreshCalendrierSiOuvert() {
+  calendrierConso = null; // invalide le cache : prochaine ouverture = données fraîches
+  const modal = document.getElementById('modal-calendrier-conso');
+  if (!modal.classList.contains('show')) return; // pas ouvert -> pas la peine de recharger maintenant
+
+  const sel = document.getElementById('calendrier-year');
+  const anneeChoisie = sel.value;
+  try {
+    const res = await apiGet('getConsoCalendrier');
+    if (res.error) throw new Error(res.error);
+    calendrierConso = res.conso || {};
+    calendrierYears = res.years || [];
+    sel.innerHTML = calendrierYears.map(y => `<option value="${y}">${y}</option>`).join('') || '<option>-</option>';
+    if (calendrierYears.includes(Number(anneeChoisie))) sel.value = anneeChoisie;
+    renderCalendrierConso();
+  } catch (e) { /* silencieux : le calendrier se rafraîchira au prochain chargement */ }
+}
 
 async function openCalendrierConso() {
   showModal('modal-calendrier-conso');
