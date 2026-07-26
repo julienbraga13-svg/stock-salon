@@ -486,7 +486,50 @@ async function handleScannedCode(code) {
     await loadData();
   } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
 }
+function chargerFournisseurSelectionne() {
+  const select = document.getElementById('cfg-select-frs');
+  const idx = select.value;
+  if (idx === "") {
+    document.getElementById('cfg-frs-nom').value = '';
+    document.getElementById('cfg-frs-mail').value = '';
+    document.getElementById('cfg-frs-franco').value = '';
+    return;
+  }
+  try {
+    let list = JSON.parse(state.config.fournisseurs || '[]');
+    const f = list[idx];
+    if (f) {
+      document.getElementById('cfg-frs-nom').value = f.nom || '';
+      document.getElementById('cfg-frs-mail').value = f.email || '';
+      document.getElementById('cfg-frs-franco').value = f.franco || '';
+    }
+  } catch(e){}
+}
 
+async function supprimerFournisseurActuel() {
+  const nomFrs = document.getElementById('cfg-frs-nom').value.trim();
+  if (!nomFrs) {
+    toast("Aucun fournisseur sélectionné ou nom vide");
+    return;
+  }
+  if (!confirm(`Voulez-vous vraiment supprimer le fournisseur "${nomFrs}" ?`)) return;
+
+  setGlobalLoading(true);
+  try {
+    const res = await apiPost('deleteFournisseur', { nom: nomFrs });
+    if (res.error) throw new Error(res.error);
+    
+    toast('Fournisseur supprimé ✔');
+    document.getElementById('cfg-frs-nom').value = '';
+    document.getElementById('cfg-frs-mail').value = '';
+    document.getElementById('cfg-frs-franco').value = '';
+    await loadData();
+  } catch (e) {
+    toast('Erreur : ' + e.message);
+  } finally {
+    setGlobalLoading(false);
+  }
+}
 async function validerQuantiteReception() {
   if (!commandeEnCoursSelectionnee || !dernierArticleScanneCode) return;
   const qteSaisie = Number(document.getElementById('rec-manual-qty').value) || 1;
