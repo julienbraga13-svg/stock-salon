@@ -55,6 +55,8 @@
   .row-alert { background: #fff2ef; }
   .btn-small { padding: 5px 9px; border-radius: 7px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
   .btn-green { background: #34c759; color: #fff; }
+  .btn-orange { background: #ff9500; color: #fff; }
+  .btn-blue { background: #007aff; color: #fff; }
   .btn-red { background: #ff3b30; color: #fff; }
   .btn-ghost { background: #e5e5ea; color: #1c1c1e; }
   .btn-primary { background: #007aff; color: #fff; padding: 10px; border-radius: 9px; border: none; font-weight: 600; font-size: 14px; flex: 1; }
@@ -64,7 +66,6 @@
   .stock-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
   .stock-summary { display: flex; justify-content: space-between; background: #f2f2f7; border: 1px solid #e5e5ea; padding: 8px 10px; border-radius: 8px; font-size: 13px; font-weight: 700; color: #1c1c1e; margin-bottom: 8px; }
   
-  /* Badge Notification Stock */
   .badge-commande { background: #fff3cd; color: #856404; font-size: 10px; padding: 2px 6px; border-radius: 6px; border: 1px solid #ffeeba; display: inline-block; margin-top: 2px; font-weight: 600; }
 
   /* Commandes */
@@ -81,23 +82,11 @@
   .send-row button { width: 100%; padding: 12px; border-radius: 10px; border: none; background: #34c759; color: #fff; font-weight: 700; font-size: 15px; }
   .send-row button:disabled { background: #c6c6c8; }
 
-  /* Réception (Liste cliquable) */
-  .cmd-card-item { background: #f8f9fa; border: 1px solid #dcdce1; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
-  .cmd-card-item:hover { background: #f1f1f5; border-color: #af52de; }
-  .cmd-card-item.selected { background: #f3e8ff; border-color: #af52de; box-shadow: 0 0 0 1px #af52de; }
-
-  /* Analyses */
-  .analyse-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .analyse-toolbar select { width: auto; font-size: 12px; padding: 5px; }
-  #conso-chart-wrap { display: none; background: #f8f8fa; border-radius: 10px; padding: 8px; margin-bottom: 10px; height: 160px; flex-shrink: 0; }
-  #conso-chart-title { font-size: 12px; font-weight: 700; margin: 0 0 4px 0; color: #3c3c43; text-align: center;}
-
-  /* Modales, Toast, Loading */
+  /* Modales */
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); align-items: center; justify-content: center; z-index: 100; padding: 16px; }
   .modal-overlay.show { display: flex; }
-  .modal-card { background: #fff; border-radius: 14px; padding: 16px; width: 100%; max-width: 360px; max-height: 90vh; overflow-y: auto; }
+  .modal-card { background: #fff; border-radius: 14px; padding: 16px; width: 100%; max-width: 380px; max-height: 90vh; overflow-y: auto; }
   .modal-card h3 { margin: 0 0 6px 0; font-size: 16px; }
-  .modal-card-large { max-width: 440px; }
   .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
   #toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px); background: #1c1c1e; color: #fff; padding: 10px 18px; border-radius: 20px; font-size: 13px; opacity: 0; transition: all 0.25s; z-index: 200; max-width: 90vw; text-align: center; }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -156,7 +145,7 @@
       </div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Article</th><th>Qté/Val</th><th>Seuil</th><th>Prix.U</th><th></th></tr></thead>
+          <thead><tr><th>Article</th><th>Qté/Val</th><th>Fournisseur</th><th>Prix.U</th><th></th></tr></thead>
           <tbody id="stock-body"></tbody>
         </table>
       </div>
@@ -169,13 +158,15 @@
       <div class="fournisseur-bar" style="flex-direction: column; align-items: stretch; gap: 6px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span style="font-weight: 700;">Gestion du Fournisseur</span>
-          <button class="btn-small btn-ghost" onclick="showModal('modal-reglages')">⚙ Autres réglages</button>
+          <button class="btn-small btn-ghost" onclick="showModal('modal-reglages')">⚙ Réglages Entête</button>
         </div>
-        <div style="display: flex; gap: 6px; align-items: center;">
-          <select id="cmd-select-frs" style="flex: 1;" onchange="selectionnerFournisseurCommande(this.value)">
+        <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+          <select id="cmd-select-frs" style="flex: 1; min-width: 140px;" onchange="selectionnerFournisseurCommande(this.value)">
             <option value="">-- Choisir un fournisseur --</option>
           </select>
           <button class="btn-small btn-green" onclick="ouvrirModalNouveauFournisseur()">+ Ajouter</button>
+          <button class="btn-small btn-orange" onclick="ouvrirModalModifierFournisseur()">✏️ Modifier</button>
+          <button class="btn-small btn-blue" onclick="ouvrirModalSwitchFournisseur()">🔄 Remplacer</button>
           <button class="btn-small btn-red" onclick="supprimerFournisseurActuelCommande()">Supprimer</button>
         </div>
         <div class="muted" id="frs-info-details" style="font-size: 11px;">Email : non configuré | Franco : 0.00 € | Délai : 7j</div>
@@ -233,7 +224,7 @@
   <div class="view" id="view-analyse">
     <div class="stock-container">
       <h2>Analyse de consommation (12 derniers mois)</h2>
-      <div class="analyse-toolbar" style="flex-wrap: wrap; gap: 8px;">
+      <div class="analyse-toolbar" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
         <div>
           <label style="display:inline-block; font-size:11px;">Stock de sécurité :</label>
           <select id="analyse-couverture" onchange="renderAnalyse()">
@@ -253,19 +244,8 @@
             <option value="1.5">50%</option>
           </select>
         </div>
-        <div>
-          <label style="display:inline-block; font-size:11px;">Graphique :</label>
-          <select id="chart-limit" onchange="renderAnalyse()">
-            <option value="5" selected>Top 5</option>
-            <option value="10">Top 10</option>
-            <option value="15">Top 15</option>
-            <option value="20">Top 20</option>
-            <option value="all">Tous</option>
-          </select>
-        </div>
       </div>
-      <div id="conso-chart-wrap">
-        <p id="conso-chart-title"></p>
+      <div id="conso-chart-wrap" style="height:160px; display:none;">
         <canvas id="conso-chart"></canvas>
       </div>
       <div class="table-scroll">
@@ -301,7 +281,7 @@
   <button class="nav-btn" data-mode="entree" onclick="switchMode('entree')"><span class="ic">📥</span>Entrée</button>
 </div>
 
-<!-- Modales -->
+<!-- Modale Nouvel Article -->
 <div class="modal-overlay" id="modal-nouveau">
   <div class="modal-card">
     <h3>Nouvel article</h3>
@@ -320,6 +300,7 @@
   </div>
 </div>
 
+<!-- Modale Ajuster Article -->
 <div class="modal-overlay" id="modal-ajust">
   <div class="modal-card">
     <h3>Modifier l'article</h3>
@@ -337,6 +318,58 @@
   </div>
 </div>
 
+<!-- Modale Ajouter/Modifier Fournisseur -->
+<div class="modal-overlay" id="modal-nouveau-frs">
+  <div class="modal-card">
+    <h3 id="modal-frs-title">Nouveau Fournisseur</h3>
+    <input type="hidden" id="edit-frs-ancien-nom">
+    <label>Nom du fournisseur</label><input type="text" id="new-frs-nom" placeholder="Nom de l'entreprise">
+    <label>Email de commande</label><input type="text" id="new-frs-mail" placeholder="email@fournisseur.com">
+    <label>Franco de port (€ TTC)</label><input type="number" id="new-frs-franco" min="0" step="0.01" value="0">
+    <label>Délai de livraison habituel (en jours)</label><input type="number" id="new-frs-delai" min="1" value="7">
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-nouveau-frs')">Annuler</button>
+      <button class="btn-primary" onclick="submitFournisseurForm()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale Remplacer / Switch Fournisseur -->
+<div class="modal-overlay" id="modal-switch-frs">
+  <div class="modal-card" style="max-width: 460px;">
+    <h3>Remplacer le fournisseur</h3>
+    <p class="muted">Basculez tous les articles associés à ce fournisseur vers un autre, ou effectuez la modification article par article.</p>
+    
+    <label>Fournisseur Source (actuel) :</label>
+    <input type="text" id="switch-frs-source" readonly style="background:#e5e5ea;">
+
+    <label style="margin-top:8px;">Nouveau Fournisseur de destination :</label>
+    <select id="switch-frs-target" onchange="toggleSwitchModeUI()"></select>
+
+    <div style="margin: 12px 0;">
+      <label><strong>Mode de remplacement :</strong></label>
+      <div style="display:flex; gap:10px; margin-top:4px;">
+        <label style="font-size:12px; color:#1c1c1e;"><input type="radio" name="switch-mode" value="auto" checked onchange="toggleSwitchModeUI()"> Tout basculer automatiquement</label>
+        <label style="font-size:12px; color:#1c1c1e;"><input type="radio" name="switch-mode" value="manual" onchange="toggleSwitchModeUI()"> Sélection manuelle article par article</label>
+      </div>
+    </div>
+
+    <!-- Zone de liste manuelle -->
+    <div id="switch-manual-list-container" style="display:none; max-height:200px; overflow-y:auto; border:1px solid #c6c6c8; border-radius:8px; padding:6px; margin-bottom:8px;">
+      <table style="width:100%;">
+        <thead><tr><th>Remplacer ?</th><th>Article</th></tr></thead>
+        <tbody id="switch-manual-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-switch-frs')">Annuler</button>
+      <button class="btn-primary" onclick="submitSwitchFournisseur()">Appliquer le transfert</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale Réglages Entête -->
 <div class="modal-overlay" id="modal-reglages">
   <div class="modal-card">
     <h3>Réglages commande</h3>
@@ -360,227 +393,18 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-nouveau-frs">
-  <div class="modal-card">
-    <h3>Fournisseur</h3>
-    <label>Nom du fournisseur</label><input type="text" id="new-frs-nom" placeholder="Nom de l'entreprise">
-    <label>Email de commande</label><input type="text" id="new-frs-mail" placeholder="email@fournisseur.com">
-    <label>Franco de port (€ TTC)</label><input type="number" id="new-frs-franco" min="0" step="0.01" value="0">
-    <label>Délai de livraison habituel (en jours)</label><input type="number" id="new-frs-delai" min="1" value="7" placeholder="ex: 3 pour 3 jours, 7 pour 1 semaine">
-    <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('modal-nouveau-frs')">Annuler</button>
-      <button class="btn-primary" onclick="submitNouveauFournisseurRapide()">Enregistrer</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="modal-reception-scan">
-  <div class="modal-card modal-card-large">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <h3 style="margin:0;">Réception : <span id="rec-modal-id"></span></h3>
-      <button class="btn-small btn-ghost" onclick="closeReceptionModal()">✕ Fermer</button>
-    </div>
-    <p class="muted" style="margin:4px 0 8px 0;">Fournisseur : <span id="rec-modal-frs"></span></p>
-
-    <!-- Scanner partagé -->
-    <div id="reception-scanner-mount"></div>
-
-    <!-- Contrôle de quantité -->
-    <div id="reception-active-item-bar" style="background: #f3e8ff; border: 1px solid #af52de; border-radius: 8px; padding: 8px; margin: 8px 0; display: none;">
-      <div style="font-size: 12px; font-weight: 700; color: #af52de; margin-bottom: 4px;" id="rec-active-name">Aucun article sélectionné</div>
-      <div style="display: flex; gap: 6px; align-items: center;">
-        <label style="margin:0; font-size:11px;">Qté à réceptionner :</label>
-        <input type="number" id="rec-manual-qty" min="1" value="1" style="width: 80px;">
-        <button class="btn-small" style="background:#af52de; color:#fff;" onclick="validerQuantiteReception()">Valider la quantité</button>
-      </div>
-    </div>
-
-    <div class="table-scroll" style="max-height: 28vh;">
-      <table>
-        <thead><tr><th>Article</th><th>Attendu</th><th>Reçu</th><th>Statut</th></tr></thead>
-        <tbody id="reception-items-body"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
 <div id="toast"></div>
 
 <script>
-// ================== CONFIG ==================
 const API_URL = 'https://script.google.com/macros/s/AKfycbyrH8_Qyma2r25rnMlgavbr6EVASPhgdgQkqGYQedUH0taFFvklPp41g8QRajropCd4/exec';
 
 let state = { produits: [], historique: [], config: {}, brouillons: [], commandesEnCours: [] };
 let panier = [];
 let currentMode = 'entree';
 let dataLoaded = false;
-let consoChartInstance = null;
-let commandeEnCoursSelectionnee = null;
-let refreshInterval = null;
+let isEditFrs = false;
 
-// ================== SCANNER & CAMERAS ==================
-let codeReader, scannerRunning = false, candidateCode = null, candidateCount = 0;
-let lastValidatedCode = null, lastValidatedTime = 0;
-let selectedDeviceId = localStorage.getItem('savedCameraId') || null; 
-let camerasPopulated = false;
-
-function setupReader() {
-  const hints = new Map();
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.UPC_A]);
-  codeReader = new ZXing.BrowserMultiFormatReader(hints);
-}
-
-async function populateCameras() {
-  if (camerasPopulated) return;
-  try {
-    const devices = await codeReader.listVideoInputDevices();
-    const select = document.getElementById('camera-select');
-    if (devices.length > 1) {
-      select.innerHTML = '<option value="">-- Objectif par défaut --</option>';
-      devices.forEach((device, index) => {
-        const option = document.createElement('option');
-        option.value = device.deviceId;
-        option.text = device.label || `Caméra ${index + 1}`;
-        if (device.deviceId === selectedDeviceId) option.selected = true;
-        select.appendChild(option);
-      });
-      select.style.display = 'block';
-      camerasPopulated = true;
-    }
-  } catch (e) { console.warn("Caméras indisponibles:", e); }
-}
-
-function changeCamera() {
-  const select = document.getElementById('camera-select');
-  selectedDeviceId = select.value || null;
-  if (selectedDeviceId) localStorage.setItem('savedCameraId', selectedDeviceId);
-  else localStorage.removeItem('savedCameraId');
-  stopScanner();
-  setTimeout(() => { startScanner(); }, 300);
-}
-
-function startScanner() {
-  if (scannerRunning) return;
-  scannerRunning = true;
-  let constraints = { video: { width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: "continuous" }] } };
-  if (selectedDeviceId) constraints.video.deviceId = { exact: selectedDeviceId };
-  else constraints.video.facingMode = "environment";
-
-  setTimeout(populateCameras, 1500);
-
-  codeReader.decodeFromConstraints(constraints, 'video', (result, err) => {
-    if (result) {
-      const rawCode = result.getText().trim();
-      const currentTime = new Date().getTime();
-      if (rawCode === lastValidatedCode && (currentTime - lastValidatedTime) < 1500) return;
-      if (rawCode === candidateCode) candidateCount++; else { candidateCode = rawCode; candidateCount = 1; }
-
-      if (candidateCount >= 3) {
-        lastValidatedCode = rawCode; lastValidatedTime = currentTime; candidateCode = null; candidateCount = 0;
-        playBeep(); triggerFlash();
-        if (navigator.vibrate) navigator.vibrate(100);
-        document.getElementById('flash-msg').textContent = "✔ " + rawCode;
-        setTimeout(() => { document.getElementById('flash-msg').textContent = ""; }, 1000);
-        handleScannedCode(rawCode);
-      }
-    }
-  }).catch(console.error);
-}
-
-function stopScanner() { if (!scannerRunning) return; scannerRunning = false; try { codeReader.reset(); } catch (e) {} }
-function manualSubmit() { const i = document.getElementById('manual-code'); const v = i.value.trim(); if (!v) return; i.value = ''; playBeep(); handleScannedCode(v); }
-function playBeep() { try { const a = new (window.AudioContext || window.webkitAudioContext)(); const o = a.createOscillator(); const g = a.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(800, a.currentTime); g.gain.setValueAtTime(0.1, a.currentTime); o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + 0.15); } catch(e){} }
-function triggerFlash() { const o = document.getElementById('flash-overlay'); o.classList.add('flash-active'); setTimeout(() => o.classList.remove('flash-active'), 100); }
-
-// ================== ROUTAGE & API ==================
-let dernierArticleScanneCode = null;
-
-async function handleScannedCode(code) {
-  if (!dataLoaded) { toast('Chargement en cours...'); return; }
-  
-  if (currentMode === 'reception') {
-    if (!commandeEnCoursSelectionnee) { toast("Veuillez d'abord sélectionner une commande ci-dessus !"); return; }
-    
-    const itemTrouve = commandeEnCoursSelectionnee.contenu.find(i => String(i.codeBarre) === String(code));
-    if (!itemTrouve) {
-      toast("Cet article ne fait pas partie de cette commande.");
-      return;
-    }
-
-    dernierArticleScanneCode = code;
-    document.getElementById('reception-active-item-bar').style.display = 'block';
-    document.getElementById('rec-active-name').textContent = itemTrouve.designation + ' (Code: ' + code + ')';
-    document.getElementById('rec-manual-qty').value = 1;
-    toast('Article reconnu, saisissez la quantité reçue');
-    return;
-  }
-
-  const p = state.produits.find(x => x.codeBarre === String(code));
-  if (currentMode === 'sortie' && !p) { toast("Article inconnu. Créez-le en mode Entrée."); return; }
-  if (!p) { openModalNouveau(code); return; }
-
-  const type = currentMode === 'entree' ? 'Entrée' : 'Sortie';
-  if (type === 'Sortie' && p.qte <= 0) if (!confirm('Stock à 0. Continuer ?')) return;
-
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('movement', { codeBarre: code, type, quantite: 1, commentaire: '' });
-    if (res.error) { toast('Erreur : ' + res.error); return; }
-    
-    p.qte = res.newQte;
-    toast((type === 'Entrée' ? '+1 ' : '-1 ') + (p.designation || code) + ' → ' + res.newQte);
-    
-    state.historique.unshift({
-      date: res.date, type, codeBarre: code, designation: p.designation,
-      quantite: 1, qteApres: res.newQte, commentaire: '', id: res.id
-    });
-    renderStock();
-    renderHistorique(type === 'Entrée' ? 'entree' : 'sortie');
-    renderSuggestions();
-  } catch (err) { 
-    toast('Erreur : ' + err.message); 
-  } finally { 
-    setGlobalLoading(false); 
-  }
-}
-
-async function validerQuantiteReception() {
-  if (!commandeEnCoursSelectionnee || !dernierArticleScanneCode) return;
-  const qteSaisie = Number(document.getElementById('rec-manual-qty').value) || 1;
-
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('receptionnerArticleCmd', { 
-      idCommande: commandeEnCoursSelectionnee.id, 
-      codeBarre: dernierArticleScanneCode,
-      quantite: qteSaisie 
-    });
-    if (res.error) { toast('Erreur : ' + res.error); return; }
-    
-    toast('Réception enregistrée ✔');
-    commandeEnCoursSelectionnee.contenu = res.contenu;
-    renderReceptionTable();
-    
-    document.getElementById('reception-active-item-bar').style.display = 'none';
-    dernierArticleScanneCode = null;
-
-    if (res.toutRecu) {
-      toast('🎉 Commande entièrement réceptionnée !');
-      setTimeout(() => {
-        closeReceptionModal();
-        loadData();
-        commandeEnCoursSelectionnee = null;
-        renderCommandesReceptionList();
-      }, 1500);
-    } else if (res.newQte !== undefined) {
-      const p = state.produits.find(x => x.codeBarre === String(dernierArticleScanneCode));
-      if (p) p.qte = res.newQte;
-      renderStock();
-      renderSuggestions();
-    }
-  } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
-}
-
+// ================== INIT & DATA ==================
 async function apiGet(action) { const res = await fetch(API_URL + '?action=' + encodeURIComponent(action)); return await res.json(); }
 async function apiPost(action, data) {
   const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, data }) });
@@ -600,16 +424,6 @@ async function loadData(silent = false) {
       commandesEnCours: data.commandesEnCours || []
     };
     dataLoaded = true;
-    
-    if (commandeEnCoursSelectionnee) {
-      const updatedCmd = state.commandesEnCours.find(c => c.id === commandeEnCoursSelectionnee.id);
-      if (updatedCmd) {
-        commandeEnCoursSelectionnee = updatedCmd;
-      } else {
-        commandeEnCoursSelectionnee = null;
-      }
-    }
-
     renderAll();
   } catch (err) { 
     if (!silent) toast('Erreur: ' + err.message); 
@@ -618,461 +432,19 @@ async function loadData(silent = false) {
   }
 }
 
-function startAutoRefresh() {
-  if (refreshInterval) clearInterval(refreshInterval);
-  refreshInterval = setInterval(() => {
-    if (document.hidden) return;
-    loadData(true);
-  }, 20000);
-}
-
-// ================== NAVIGATION & MODES ==================
-function switchMode(mode) {
-  if (document.getElementById('modal-reception-scan').classList.contains('show')) closeReceptionModal();
-
-  currentMode = mode;
-  document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
-  document.getElementById('view-' + mode).style.display = 'flex';
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
-  
-  const sc = document.getElementById('scanner-section');
-  if (mode === 'entree' || mode === 'sortie') {
-    sc.style.display = 'flex';
-    sc.classList.toggle('mode-sortie', mode === 'sortie');
-    sc.classList.remove('mode-reception');
-    document.getElementById('scanner-mode-label').textContent = mode === 'entree' ? 'Mode Entrée' : 'Mode Sortie';
-    startScanner();
-  } else { sc.style.display = 'none'; stopScanner(); }
-
-  if (mode === 'stock') renderStock();
-  if (mode === 'commande') { renderSuggestions(); renderManualSelect(); renderBrouillons(); }
-  if (mode === 'reception') { renderCommandesReceptionList(); }
-  if (mode === 'analyse') loadAnalyseData();
-}
-
 function renderAll() {
-  renderStock(); renderHistorique('entree'); renderHistorique('sortie');
-  renderSuggestions(); renderManualSelect(); renderConfigForm(); renderPanier(); renderBrouillons();
-  if (currentMode === 'reception') renderCommandesReceptionList();
-  if (currentMode === 'analyse') renderAnalyse();
+  renderStock(); 
+  renderHistorique('entree'); 
+  renderHistorique('sortie');
+  renderSuggestions(); 
+  renderManualSelect(); 
+  renderConfigForm(); 
+  renderPanier(); 
+  renderBrouillons();
+  populateFournisseursSelects();
 }
 
-// ================== VUE RECEPTION ==================
-function renderCommandesReceptionList() {
-  const container = document.getElementById('commandes-cards-container');
-  const cmds = state.commandesEnCours || [];
-
-  if (cmds.length === 0) {
-    container.innerHTML = '<p class="muted" style="text-align:center; margin:10px 0;">Aucune commande en attente de réception.</p>';
-    commandeEnCoursSelectionnee = null;
-    return;
-  }
-
-  container.innerHTML = cmds.map(c => {
-    const isSelected = commandeEnCoursSelectionnee && commandeEnCoursSelectionnee.id === c.id;
-    return `<div class="cmd-card-item ${isSelected ? 'selected' : ''}" onclick="selectionnerCommandeReception('${c.id}')">
-      <div style="display:flex; justify-content:space-between; font-weight:700; font-size:13px;">
-        <span>${c.id}</span>
-        <span style="color:#af52de;">${c.fournisseur}</span>
-      </div>
-      <div style="display:flex; justify-content:space-between; font-size:11px; color:#8e8e93; margin-top:2px;">
-        <span>Date : ${formatDate(c.date)}</span>
-        <span>${c.contenu.length} articles</span>
-      </div>
-    </div>`;
-  }).join('');
-
-  if (commandeEnCoursSelectionnee && document.getElementById('modal-reception-scan').classList.contains('show')) {
-    renderReceptionTable();
-  }
-}
-
-function selectionnerCommandeReception(id) {
-  commandeEnCoursSelectionnee = state.commandesEnCours.find(c => c.id === id);
-  if (!commandeEnCoursSelectionnee) return;
-  renderCommandesReceptionList();
-  openReceptionModal();
-}
-
-function openReceptionModal() {
-  if (!commandeEnCoursSelectionnee) return;
-  document.getElementById('rec-modal-id').textContent = commandeEnCoursSelectionnee.id;
-  document.getElementById('rec-modal-frs').textContent = commandeEnCoursSelectionnee.fournisseur;
-  renderReceptionTable();
-
-  const sc = document.getElementById('scanner-section');
-  document.getElementById('reception-scanner-mount').appendChild(sc);
-  sc.style.display = 'flex';
-  sc.classList.add('mode-reception');
-  document.getElementById('scanner-mode-label').textContent = 'Mode Réception Commande';
-  startScanner();
-
-  showModal('modal-reception-scan');
-}
-
-function closeReceptionModal() {
-  stopScanner();
-  const sc = document.getElementById('scanner-section');
-  const anchor = document.getElementById('scanner-anchor');
-  anchor.parentNode.insertBefore(sc, anchor);
-  sc.style.display = 'none';
-  document.getElementById('reception-active-item-bar').style.display = 'none';
-  dernierArticleScanneCode = null;
-  closeModal('modal-reception-scan');
-}
-
-function renderReceptionTable() {
-  if (!commandeEnCoursSelectionnee) return;
-  const tbody = document.getElementById('reception-items-body');
-  tbody.innerHTML = commandeEnCoursSelectionnee.contenu.map(item => {
-    const complet = item.qteRecue >= item.qte;
-    return `<tr style="${complet ? 'background: #e8f5e9;' : ''}">
-      <td>${escapeHtml(item.designation)}<br><span class="muted">${item.codeBarre}</span></td>
-      <td>${item.qte}</td>
-      <td><strong>${item.qteRecue}</strong></td>
-      <td>${complet ? '✅ Reçu' : '⏳ En attente'}</td>
-    </tr>`;
-  }).join('');
-}
-
-// ================== RENDUS STOCK, ANALYSE & COMMANDES ==================
-function renderStock() {
-  const tbody = document.getElementById('stock-body');
-  const filter = document.getElementById('stock-search').value.trim().toLowerCase();
-  
-  let totalItems = 0, totalValue = 0;
-
-  const codesCommandes = new Set();
-  (state.commandesEnCours || []).forEach(cmd => {
-    (cmd.contenu || []).forEach(item => {
-      if (item.qteRecue < item.qte) {
-        codesCommandes.add(String(item.codeBarre));
-      }
-    });
-  });
-
-  const fullList = state.produits.filter(p => !filter || p.codeBarre.toLowerCase().includes(filter) || (p.designation || '').toLowerCase().includes(filter)).sort((a,b) => (a.designation||'').localeCompare(b.designation||''));
-
-  fullList.forEach(p => {
-    totalItems += p.qte;
-    totalValue += (p.qte * p.prixAchat);
-  });
-
-  tbody.innerHTML = fullList.map(p => {
-    const v = p.qte * p.prixAchat;
-    const estcommande = codesCommandes.has(String(p.codeBarre));
-    
-    return `<tr class="${p.qte <= p.seuil ? 'row-alert' : ''}">
-      <td>
-        ${escapeHtml(p.designation)}<br><span class="muted">${escapeHtml(p.codeBarre)}</span>
-        ${estcommande ? '<br><span class="badge-commande">📦 Commandé (en attente)</span>' : ''}
-      </td>
-      <td>${p.qte}<br><span class="muted">${v.toFixed(2)}€ TTC</span></td>
-      <td>${p.seuil}</td><td>${p.prixAchat.toFixed(2)}€ TTC</td>
-      <td><button class="btn-small btn-ghost" onclick="openModalAjust('${p.codeBarre}')">Ajuster</button></td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="5" class="muted">Aucun article</td></tr>';
-
-  document.getElementById('tot-qty').textContent = `${totalItems} (${fullList.length} fiches)`;
-  document.getElementById('tot-val').textContent = totalValue.toFixed(2) + ' € TTC';
-}
-
-let analyseConso = null;
-
-async function loadAnalyseData() {
-  const tbody = document.getElementById('analyse-body');
-  tbody.innerHTML = '<tr><td colspan="5" class="muted">Chargement...</td></tr>';
-  try {
-    const res = await apiGet('getAnalyse');
-    if (res.error) throw new Error(res.error);
-    analyseConso = res.conso || {};
-  } catch (e) {
-    analyseConso = {};
-    toast('Erreur analyse : ' + e.message);
-  }
-  renderAnalyse();
-}
-
-function renderAnalyse() {
-  const tbody = document.getElementById('analyse-body');
-  const extraWeeksCoverage = Number(document.getElementById('analyse-couverture').value) || 2;
-  const coeffSecurite = Number(document.getElementById('analyse-marge').value) || 1.2;
-  const chartLimitVal = document.getElementById('chart-limit').value;
-  
-  if (!analyseConso) { loadAnalyseData(); return; }
-
-  const conso12m = analyseConso || {};
-  const history = state.historique || [];
-  
-  let fournisseursList = [];
-  try { fournisseursList = JSON.parse(state.config.fournisseurs || '[]'); } catch(e){}
-
-  const limit30d = new Date();
-  limit30d.setDate(limit30d.getDate() - 30);
-  
-  const conso30d = {};
-  history.forEach(h => {
-    if (h.type === 'Sortie' && new Date(h.date) >= limit30d) {
-      conso30d[h.codeBarre] = (conso30d[h.codeBarre] || 0) + Number(h.quantite);
-    }
-  });
-
-  const list = state.produits.map(p => {
-    const tot12m = conso12m[p.codeBarre] || 0;
-    const tot30d = conso30d[p.codeBarre] || 0;
-    
-    const avgWeek12m = tot12m / 52;
-    const avgWeek30d = tot30d / 4.28;
-    
-    const vitesseRetention = Math.max(avgWeek12m, avgWeek30d);
-    
-    let tendance = 'stable';
-    if (avgWeek30d > avgWeek12m * 1.25 && tot30d > 2) tendance = 'hausse';
-    else if (avgWeek30d < avgWeek12m * 0.75 && tot12m > 5) tendance = 'baisse';
-
-    // Recherche du délai fournisseur
-    const frsInfo = fournisseursList.find(f => f.nom === p.fournisseur);
-    const delaiJours = frsInfo ? Number(frsInfo.delai) || 7 : 7;
-    const delaiSemaines = delaiJours / 7;
-
-    // Calcul du seuil intégrant le délai de livraison + couverture de sécurité
-    const totalWeeksNeeded = delaiSemaines + extraWeeksCoverage;
-    const suggSeuil = Math.ceil((vitesseRetention * totalWeeksNeeded) * coeffSecurite);
-    
-    const consoJeu = vitesseRetention / 7;
-    const joursRestants = consoJeu > 0 ? Math.floor(p.qte / consoJeu) : 999;
-
-    return { 
-      ...p, 
-      tot12m, 
-      avgWeek: vitesseRetention, 
-      suggSeuil, 
-      joursRestants, 
-      tendance,
-      delaiJours
-    };
-  }).filter(p => p.tot12m > 0 || p.qte > 0).sort((a, b) => a.joursRestants - b.joursRestants);
-
-  tbody.innerHTML = list.map(p => {
-    let badgeAlert = '';
-    if (p.joursRestants <= (p.delaiJours)) {
-      badgeAlert = `<span style="background:#ff3b30; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold;">🚨 Commande urgente (${p.delaiJours}j livraison)</span>`;
-    } else if (p.qte <= p.suggSeuil) {
-      badgeAlert = `<span style="background:#ff9500; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold;">⚠️ À réapprovisionner (~${p.joursRestants}j)</span>`;
-    } else {
-      badgeAlert = `<span style="color:#34c759; font-size:11px;">✅ Stock suffisant (~${p.joursRestants}j)</span>`;
-    }
-
-    let iconeTendance = '➡️';
-    if (p.tendance === 'hausse') iconeTendance = '📈 <span style="color:#ff3b30; font-size:10px;">(Surconsommation)</span>';
-    if (p.tendance === 'baisse') iconeTendance = '📉';
-
-    return `<tr>
-      <td>
-        <strong>${escapeHtml(p.designation)}</strong><br>
-        <span class="muted">${p.codeBarre} | ${escapeHtml(p.fournisseur || 'Frs non défini')} (${p.delaiJours}j livr.)</span><br>
-        ${badgeAlert}
-      </td>
-      <td>
-        <strong>${p.qte}</strong> en stock<br>
-        <span class="muted">${p.avgWeek.toFixed(1)} / sem ${iconeTendance}</span>
-      </td>
-      <td>
-        <span class="muted">Actuel : ${p.seuil}</span><br>
-        <strong>Suggéré : ${p.suggSeuil}</strong>
-      </td>
-      <td>
-        <button class="btn-small ${p.seuil < p.suggSeuil ? 'btn-green' : 'btn-ghost'}" 
-                onclick="applySeuil('${p.codeBarre}', ${p.suggSeuil})">
-          Appliquer (${p.suggSeuil})
-        </button>
-      </td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="4" class="muted">Aucune donnée d\'analyse disponible</td></tr>';
-
-  // Filtre graphique
-  const chartSorted = list.filter(p => p.tot12m > 0).sort((a,b) => b.tot12m - a.tot12m);
-  const chartDataList = chartLimitVal === 'all' ? chartSorted : chartSorted.slice(0, Number(chartLimitVal));
-  
-  renderChart(chartDataList);
-}
-
-function renderChart(topList) {
-  const wrap = document.getElementById('conso-chart-wrap');
-  if (topList.length === 0) { wrap.style.display = 'none'; return; }
-  wrap.style.display = 'block';
-  document.getElementById('conso-chart-title').textContent = `Top ${topList.length} Consommation (12 derniers mois)`;
-  if (consoChartInstance) consoChartInstance.destroy();
-  
-  consoChartInstance = new Chart(document.getElementById('conso-chart'), {
-    type: 'bar',
-    data: {
-      labels: topList.map(p => (p.designation || p.codeBarre).substring(0,12)),
-      datasets: [{ label: 'Unités sorties', data: topList.map(p => p.tot12m), backgroundColor: '#5856d6', borderRadius: 4 }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-  });
-}
-
-function renderBrouillons() {
-  const sec = document.getElementById('brouillons-section');
-  const tbody = document.getElementById('brouillons-body');
-  if (!state.brouillons || state.brouillons.length === 0) {
-    sec.style.display = 'none'; return;
-  }
-  sec.style.display = 'block';
-  tbody.innerHTML = state.brouillons.map(b => `<tr>
-    <td>Brouillon du ${formatDate(b.date)}<br><span class="muted">${b.contenu.length} articles</span></td>
-    <td style="text-align:right;">
-      <button class="btn-small btn-green" onclick="chargerBrouillon('${b.id}')">Ouvrir</button>
-      <button class="btn-small btn-red" onclick="supprimerBrouillon('${b.id}')">✕</button>
-    </td>
-  </tr>`).join('');
-}
-
-async function sauvegarderBrouillon() {
-  if (panier.length === 0) { toast("Le panier est vide"); return; }
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('savePanier', { panier });
-    if (res.error) throw new Error(res.error);
-    toast('Brouillon sauvegardé ✔');
-    panier = []; 
-    await loadData();
-  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
-}
-
-function chargerBrouillon(id) {
-  const b = state.brouillons.find(x => x.id === id);
-  if (!b) return;
-  if (panier.length > 0 && !confirm("Écraser le panier en cours ?")) return;
-  panier = b.contenu;
-  renderPanier();
-  supprimerBrouillon(id);
-}
-
-async function supprimerBrouillon(id) {
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('deletePanier', { id });
-    if (res.error) throw new Error(res.error);
-    await loadData();
-  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
-}
-
-async function envoyerCommande() {
-  if (panier.length === 0) { toast("Le panier est vide"); return; }
-  const c = state.config || {};
-  if (!c.fournisseurEmail) { toast("Email du fournisseur non configuré !"); return; }
-  
-  let total = 0;
-  panier.forEach(a => { total += (a.qte * (a.prixAchat || 0)); });
-  const franco = Number(c.fournisseurFranco) || 0;
-  
-  if (franco > 0 && total < franco) {
-    if (!confirm(`Attention, le Franco de port (${franco}€ TTC) n'est pas atteint (Actuel: ${total.toFixed(2)}€ TTC).\n\nVoulez-vous quand même envoyer la commande ?`)) {
-      return;
-    }
-  }
-
-  setGlobalLoading(true);
-  document.getElementById('send-btn').disabled = true;
-  try {
-    const res = await apiPost('sendOrder', { panier, config: c });
-    if (res.error) throw new Error(res.error);
-    toast('Commande envoyée ✔');
-    panier = []; renderPanier();
-    await loadData();
-  } catch (e) { toast('Erreur : ' + e.message); } 
-  finally { setGlobalLoading(false); document.getElementById('send-btn').disabled = false; }
-}
-
-async function submitAjust() {
-  const code = document.getElementById('modal-ajust').dataset.code;
-  const qte = Number(document.getElementById('adj-qty').value);
-  const prix = Number(document.getElementById('adj-prix').value);
-  const seuil = Number(document.getElementById('adj-seuil').value);
-  const fournisseur = document.getElementById('adj-fournisseur').value;
-  const commentaire = document.getElementById('adj-comment').value.trim();
-  closeModal('modal-ajust');
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('adjustProduct', { codeBarre: code, qte, prixAchat: prix, seuil, fournisseur, commentaire });
-    if (res.error) throw new Error(res.error);
-    toast('Article ajusté ✔'); await loadData();
-  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
-}
-
-async function submitReglages() {
-  const cfg = {
-    ...state.config,
-    nom: document.getElementById('cfg-nom').value, representant: document.getElementById('cfg-representant').value,
-    siret: document.getElementById('cfg-siret').value, adresse: document.getElementById('cfg-adresse').value,
-    mail: document.getElementById('cfg-mail').value, tel: document.getElementById('cfg-tel').value
-  };
-  closeModal('modal-reglages');
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('saveConfig', cfg);
-    if (res.error) throw new Error(res.error);
-    toast('Réglages sauvegardés ✔'); await loadData();
-  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
-}
-
-async function applySeuil(code, seuil) {
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('updateSeuil', { codeBarre: code, seuil });
-    if (res.error) throw new Error(res.error);
-    toast('Seuil mis à jour ✔'); await loadData();
-  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
-}
-
-function renderHistorique(mode) {
-  const type = mode === 'entree' ? 'Entrée' : 'Sortie';
-  const list = state.historique.filter(h => h.type === type).slice(0, 50);
-  document.getElementById(mode + '-histo-body').innerHTML = list.map(h => `<tr>
-      <td>${formatDate(h.date)}</td><td>${escapeHtml(h.designation)}</td>
-      <td>${h.quantite}</td><td>${h.qteApres}</td>
-      <td><button class="btn-small btn-red" onclick="deleteHistoriqueRow('${h.id}')">✕</button></td>
-    </tr>`).join('') || '<tr><td colspan="5" class="muted">Aucun mouvement</td></tr>';
-}
-
-async function deleteHistoriqueRow(id) {
-  if (!confirm('Supprimer cette ligne et ajuster le stock ?')) return;
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('deleteHistorique', { id });
-    if (res.error) throw new Error(res.error);
-    toast('Ligne supprimée ✔'); await loadData();
-  } catch (err) { toast('Erreur: ' + err.message); } finally { setGlobalLoading(false); }
-}
-
-function renderSuggestions() {
-  const tbody = document.getElementById('suggestions-body');
-  
-  const codesCommandes = new Set();
-  (state.commandesEnCours || []).forEach(cmd => {
-    (cmd.contenu || []).forEach(item => {
-      if (item.qteRecue < item.qte) {
-        codesCommandes.add(String(item.codeBarre));
-      }
-    });
-  });
-
-  const list = state.produits.filter(p => p.qte <= p.seuil && !codesCommandes.has(String(p.codeBarre)));
-  
-  tbody.innerHTML = list.map(p => `<tr>
-      <td>${escapeHtml(p.designation)}<br><span class="muted">${p.qte}/${p.seuil}</span></td>
-      <td><input type="number" min="1" value="${Math.max(p.seuil - p.qte, 1)}" id="sugg-qty-${p.codeBarre}" class="qty-input"></td>
-      <td><button class="btn-small btn-green" onclick="addToPanier('${p.codeBarre}')">Ajouter</button></td>
-    </tr>`).join('') || '<tr><td colspan="3" class="muted">Aucune suggestion disponible 🎉</td></tr>';
-}
-
-function renderManualSelect() {
-  document.getElementById('manual-select').innerHTML = '<option value="">-- choisir un article --</option>' + state.produits.sort((a,b) => (a.designation||'').localeCompare(b.designation||'')).map(p => `<option value="${p.codeBarre}">${escapeHtml(p.designation)} (${p.codeBarre})</option>`).join('');
-}
-
+// ================== GESTION FOURNISSEUR ==================
 function populateFournisseursSelects() {
   let list = [];
   try { list = JSON.parse(state.config.fournisseurs || '[]'); } catch(e){}
@@ -1086,10 +458,6 @@ function populateFournisseursSelects() {
 
 function renderConfigForm() {
   const c = state.config || {};
-  const setVal = (id, val) => { const e = document.getElementById(id); if(e) e.value = val || ''; };
-  setVal('cfg-nom', c.nom); setVal('cfg-representant', c.representant); setVal('cfg-siret', c.siret);
-  setVal('cfg-adresse', c.adresse); setVal('cfg-mail', c.mail); setVal('cfg-tel', c.tel);
-
   let list = [];
   try { list = JSON.parse(c.fournisseurs || '[]'); } catch(e){}
   
@@ -1099,7 +467,6 @@ function renderConfigForm() {
       list.map((f, idx) => `<option value="${idx}" ${f.nom === c.fournisseurNom ? 'selected' : ''}>${f.nom}</option>`).join('');
   }
 
-  populateFournisseursSelects();
   updateFrsDetailsUI();
 }
 
@@ -1139,6 +506,8 @@ async function saveConfigFields(changes) {
 }
 
 function ouvrirModalNouveauFournisseur() {
+  isEditFrs = false;
+  document.getElementById('modal-frs-title').textContent = "Nouveau Fournisseur";
   document.getElementById('new-frs-nom').value = '';
   document.getElementById('new-frs-mail').value = '';
   document.getElementById('new-frs-franco').value = '0';
@@ -1146,7 +515,21 @@ function ouvrirModalNouveauFournisseur() {
   showModal('modal-nouveau-frs');
 }
 
-async function submitNouveauFournisseurRapide() {
+function ouvrirModalModifierFournisseur() {
+  const nomActuel = state.config.fournisseurNom;
+  if (!nomActuel) { toast("Sélectionnez d'abord un fournisseur à modifier."); return; }
+  
+  isEditFrs = true;
+  document.getElementById('modal-frs-title').textContent = "Modifier Fournisseur : " + nomActuel;
+  document.getElementById('edit-frs-ancien-nom').value = nomActuel;
+  document.getElementById('new-frs-nom').value = nomActuel;
+  document.getElementById('new-frs-mail').value = state.config.fournisseurEmail || '';
+  document.getElementById('new-frs-franco').value = state.config.fournisseurFranco || 0;
+  document.getElementById('new-frs-delai').value = state.config.fournisseurDelai || 7;
+  showModal('modal-nouveau-frs');
+}
+
+async function submitFournisseurForm() {
   const nom = document.getElementById('new-frs-nom').value.trim();
   const email = document.getElementById('new-frs-mail').value.trim();
   const franco = Number(document.getElementById('new-frs-franco').value) || 0;
@@ -1157,19 +540,23 @@ async function submitNouveauFournisseurRapide() {
   closeModal('modal-nouveau-frs');
   setGlobalLoading(true);
   try {
-    const res = await apiPost('saveConfig', { ...state.config, fournisseurNom: nom, fournisseurEmail: email, fournisseurFranco: franco, fournisseurDelai: delai });
-    if (res.error) throw new Error(res.error);
-    toast('Fournisseur ajouté et sélectionné ✔');
+    if (isEditFrs) {
+      const ancienNom = document.getElementById('edit-frs-ancien-nom').value;
+      const res = await apiPost('updateFournisseur', { ancienNom, nom, email, franco, delai });
+      if (res.error) throw new Error(res.error);
+      toast('Fournisseur modifié ✔');
+    } else {
+      const res = await apiPost('saveConfig', { ...state.config, fournisseurNom: nom, fournisseurEmail: email, fournisseurFranco: franco, fournisseurDelai: delai });
+      if (res.error) throw new Error(res.error);
+      toast('Fournisseur ajouté et sélectionné ✔');
+    }
     await loadData();
   } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
 }
 
 async function supprimerFournisseurActuelCommande() {
   const nomActuel = state.config.fournisseurNom;
-  if (!nomActuel) {
-    toast("Aucun fournisseur actuellement sélectionné.");
-    return;
-  }
+  if (!nomActuel) { toast("Aucun fournisseur actuellement sélectionné."); return; }
   if (!confirm(`Voulez-vous vraiment supprimer le fournisseur "${nomActuel}" ?`)) return;
 
   setGlobalLoading(true);
@@ -1178,44 +565,98 @@ async function supprimerFournisseurActuelCommande() {
     if (res.error) throw new Error(res.error);
     toast('Fournisseur supprimé ✔');
     await loadData();
-  } catch (e) {
-    toast('Erreur : ' + e.message);
-  } finally {
-    setGlobalLoading(false);
+  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
+}
+
+/* Modal Remplacer / Switch Fournisseur */
+function ouvrirModalSwitchFournisseur() {
+  const src = state.config.fournisseurNom;
+  if (!src) { toast("Sélectionnez le fournisseur source à remplacer."); return; }
+  
+  document.getElementById('switch-frs-source').value = src;
+  
+  let list = [];
+  try { list = JSON.parse(state.config.fournisseurs || '[]'); } catch(e){}
+  const targetSelect = document.getElementById('switch-frs-target');
+  targetSelect.innerHTML = '<option value="">-- Choisir le nouveau fournisseur --</option>' + 
+    list.filter(f => f.nom !== src).map(f => `<option value="${escapeHtml(f.nom)}">${escapeHtml(f.nom)}</option>`).join('');
+
+  // Remplir tableau manuel
+  const articlesLies = state.produits.filter(p => (p.fournisseur || '').toLowerCase() === src.toLowerCase());
+  const tbody = document.getElementById('switch-manual-tbody');
+  if (articlesLies.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="2" class="muted">Aucun article lié à ce fournisseur.</td></tr>';
+  } else {
+    tbody.innerHTML = articlesLies.map(p => `<tr>
+      <td style="text-align:center;"><input type="checkbox" class="chk-switch-item" data-code="${p.codeBarre}" checked></td>
+      <td>${escapeHtml(p.designation)} <br><span class="muted">${p.codeBarre}</span></td>
+    </tr>`).join('');
   }
+
+  toggleSwitchModeUI();
+  showModal('modal-switch-frs');
 }
 
-function renderPanier() {
-  let total = 0;
-  document.getElementById('panier-body').innerHTML = panier.map((a, i) => {
-    const t = a.qte * a.prixAchat; total += t;
-    return `<tr><td>${escapeHtml(a.designation)}</td><td><input type="number" min="1" value="${a.qte}" class="qty-input" onchange="updatePanierQty(${i}, this.value)"></td><td>${t.toFixed(2)}€ TTC</td><td><button class="btn-small btn-red" onclick="removeFromPanier(${i})">✕</button></td></tr>`;
-  }).join('') || '<tr><td colspan="4" class="muted">Panier vide</td></tr>';
-  document.getElementById('panier-total').textContent = total.toFixed(2) + ' € TTC';
+function toggleSwitchModeUI() {
+  const mode = document.querySelector('input[name="switch-mode"]:checked').value;
+  const container = document.getElementById('switch-manual-list-container');
+  container.style.display = mode === 'manual' ? 'block' : 'none';
 }
 
-function addToPanier(code) {
-  const p = state.produits.find(x => x.codeBarre === code); if (!p) return;
-  const qty = Number(document.getElementById('sugg-qty-' + code).value) || 1;
-  const existing = panier.find(x => x.codeBarre === code);
-  if (existing) existing.qte += qty; else panier.push({ codeBarre: p.codeBarre, designation: p.designation, qte: qty, prixAchat: p.prixAchat });
-  renderPanier(); toast('Ajouté au panier');
+async function submitSwitchFournisseur() {
+  const src = document.getElementById('switch-frs-source').value;
+  const target = document.getElementById('switch-frs-target').value;
+  const mode = document.querySelector('input[name="switch-mode"]:checked').value;
+
+  if (!target) { toast("Choisissez un fournisseur de destination."); return; }
+
+  let payload = {};
+  if (mode === 'auto') {
+    payload = { ancienFournisseur: src, nouveauFournisseur: target };
+  } else {
+    const articles = [];
+    document.querySelectorAll('.chk-switch-item:checked').forEach(chk => {
+      articles.push({ codeBarre: chk.dataset.code, nouveauFournisseur: target });
+    });
+    if (articles.length === 0) { toast("Sélectionnez au moins un article à basculer."); return; }
+    payload = { articles };
+  }
+
+  closeModal('modal-switch-frs');
+  setGlobalLoading(true);
+  try {
+    const res = await apiPost('switchFournisseur', payload);
+    if (res.error) throw new Error(res.error);
+    toast('Transfert des articles effectué ✔');
+    await loadData();
+  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
 }
 
-function addManualToPanier() {
-  const code = document.getElementById('manual-select').value; if (!code) { toast('Choisissez un article'); return; }
-  const qty = Number(document.getElementById('manual-qty').value) || 1;
-  const p = state.produits.find(x => x.codeBarre === code);
-  const existing = panier.find(x => x.codeBarre === code);
-  if (existing) existing.qte += qty; else panier.push({ codeBarre: p.codeBarre, designation: p.designation, qte: qty, prixAchat: p.prixAchat });
-  renderPanier(); toast('Ajouté au panier');
+// ================== FONCTIONS STOCK & ARTICLE ==================
+function renderStock() {
+  const tbody = document.getElementById('stock-body');
+  const filter = document.getElementById('stock-search').value.trim().toLowerCase();
+  
+  let totalItems = 0, totalValue = 0;
+  const fullList = state.produits.filter(p => !filter || p.codeBarre.toLowerCase().includes(filter) || (p.designation || '').toLowerCase().includes(filter)).sort((a,b) => (a.designation||'').localeCompare(b.designation||''));
+
+  fullList.forEach(p => { totalItems += p.qte; totalValue += (p.qte * p.prixAchat); });
+
+  tbody.innerHTML = fullList.map(p => {
+    const v = p.qte * p.prixAchat;
+    return `<tr class="${p.qte <= p.seuil ? 'row-alert' : ''}">
+      <td>${escapeHtml(p.designation)}<br><span class="muted">${escapeHtml(p.codeBarre)}</span></td>
+      <td>${p.qte}<br><span class="muted">${v.toFixed(2)}€</span></td>
+      <td>${escapeHtml(p.fournisseur || 'Non défini')}</td>
+      <td>${p.prixAchat.toFixed(2)}€</td>
+      <td><button class="btn-small btn-ghost" onclick="openModalAjust('${p.codeBarre}')">Ajuster</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" class="muted">Aucun article</td></tr>';
+
+  document.getElementById('tot-qty').textContent = `${totalItems} (${fullList.length} fiches)`;
+  document.getElementById('tot-val').textContent = totalValue.toFixed(2) + ' € TTC';
 }
 
-function updatePanierQty(i, val) { panier[i].qte = Math.max(Number(val) || 1, 1); renderPanier(); }
-function removeFromPanier(i) { panier.splice(i, 1); renderPanier(); }
-
-function showModal(id) { document.getElementById(id).classList.add('show'); }
-function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 function openModalNouveau(code) {
   document.getElementById('new-code').value = code || '';
   ['designation','qte','prix','contenance','seuil'].forEach(id => document.getElementById('new-'+id).value = (id==='qte'||id==='prix'||id==='seuil')?0:'');
@@ -1225,7 +666,6 @@ function openModalNouveau(code) {
 
 async function submitNouveau() {
   const codeBarre = document.getElementById('new-code').value.trim(); if (!codeBarre) { toast('Code requis'); return; }
-  if (state.produits.find(x => x.codeBarre === codeBarre)) { toast('Code déjà existant'); return; }
   const designation = document.getElementById('new-designation').value.trim(); if (!designation) { toast('Désignation requise'); return; }
   const data = { 
     codeBarre, 
@@ -1256,17 +696,37 @@ function openModalAjust(code) {
   showModal('modal-ajust');
 }
 
+async function submitAjust() {
+  const code = document.getElementById('modal-ajust').dataset.code;
+  const qte = Number(document.getElementById('adj-qty').value);
+  const prix = Number(document.getElementById('adj-prix').value);
+  const seuil = Number(document.getElementById('adj-seuil').value);
+  const fournisseur = document.getElementById('adj-fournisseur').value;
+  const commentaire = document.getElementById('adj-comment').value.trim();
+  closeModal('modal-ajust');
+  setGlobalLoading(true);
+  try {
+    const res = await apiPost('adjustProduct', { codeBarre: code, qte, prixAchat: prix, seuil, fournisseur, commentaire });
+    if (res.error) throw new Error(res.error);
+    toast('Article ajusté ✔'); await loadData();
+  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
+}
+
+// ================== UTILS DE NAVIGATION ==================
+function switchMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+  document.getElementById('view-' + mode).style.display = 'flex';
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+}
+
+function showModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
 function setGlobalLoading(show) { document.getElementById('loading-bar').classList.toggle('show', show); }
-function escapeHtml(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-function formatDate(dateStr) { if (!dateStr) return ''; const d = new Date(dateStr); return isNaN(d) ? dateStr : d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+function escapeHtml(str) { return String(str||'').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
-window.addEventListener('DOMContentLoaded', () => { 
-  setupReader(); 
-  loadData(); 
-  switchMode('sortie'); 
-  startAutoRefresh();
-});
+window.addEventListener('DOMContentLoaded', () => { loadData(); switchMode('stock'); });
 </script>
 </body>
 </html>
