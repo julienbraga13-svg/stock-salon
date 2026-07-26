@@ -268,7 +268,10 @@
   <div class="view" id="view-analyse">
     <div class="view-loading-overlay"><div class="loading-spinner"></div><div class="loading-text">Chargement des données...</div></div>
     <div class="stock-container">
-      <h2>Analyse de consommation (12 derniers mois)</h2>
+      <div class="stock-header-row">
+        <h2 style="margin:0;">Analyse de consommation (12 derniers mois)</h2>
+        <button class="btn-small btn-ghost" onclick="showModal('modal-info-analyse')">ℹ️ Info</button>
+      </div>
       <div class="analyse-toolbar">
         <div>
           <label style="display:inline-block; font-size:10px;">Stock sécurité :</label>
@@ -428,6 +431,38 @@
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-switch-frs')">Annuler</button>
       <button class="btn-primary" onclick="submitSwitchFournisseurEnMasse()">Appliquer le changement</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-info-analyse">
+  <div class="modal-card modal-card-large">
+    <h3>🧠 À quoi sert le mode Analyse ?</h3>
+    <p>Ce mode t'aide à savoir <strong>quand recommander un produit</strong>, sans avoir à réfléchir. Il fait les calculs tout seul à partir de tes ventes passées.</p>
+
+    <p><strong>Le graphique en haut :</strong><br>
+    Il montre les 10 produits qui partent le plus vite. Plus la barre est haute, plus tu en vends.</p>
+
+    <p><strong>Les 2 menus déroulants :</strong></p>
+    <p>👉 <strong>"Stock sécurité"</strong> : une marge de sécurité en plus, en semaines. Si tu choisis "2 sem extra", l'appli va te conseiller d'avoir 2 semaines de stock en plus que le strict minimum, au cas où un client achète plus que prévu.</p>
+    <p>👉 <strong>"Marge"</strong> : encore une sécurité, mais en pourcentage. Si tu choisis "20%", l'appli ajoute 20% de stock en plus par rapport à ce qu'elle a calculé. Plus tu montes ces 2 réglages, moins tu risques la rupture de stock, mais plus tu stockes de produits (donc plus d'argent immobilisé).</p>
+    <p class="muted">Astuce : si tu n'es jamais en rupture, tu peux baisser ces réglages. Si tu es souvent en rupture, monte-les.</p>
+
+    <p><strong>Le tableau en dessous, pour chaque produit :</strong></p>
+    <p>• <strong>Le badge de couleur</strong> te dit s'il faut agir :<br>
+    🚨 <strong>Rouge "Urgent"</strong> = commande-le tout de suite, tu vas être en rupture avant même que ton fournisseur ait le temps de te livrer.<br>
+    ⚠️ <strong>Orange "Réappro"</strong> = il est temps de le mettre dans une commande bientôt.<br>
+    ✅ <strong>Vert "OK"</strong> = rien à faire, tu as assez de stock pour l'instant.</p>
+    <p>• <strong>"X / sem"</strong> = combien tu en vends en moyenne chaque semaine. La flèche 📈 veut dire que ça se vend de plus en plus, 📉 que ça ralentit.</p>
+    <p>• <strong>"Seuil"</strong> = le niveau de stock en dessous duquel il faut recommander. "Actuel" = ton réglage d'aujourd'hui. "Sugg" = ce que l'appli te conseille à la place, calculé automatiquement.</p>
+
+    <p><strong>Comment bien s'en servir :</strong></p>
+    <p>1. Regarde en premier les produits avec un badge 🚨 ou ⚠️ (le tableau est déjà trié, les plus urgents sont en haut).<br>
+    2. Si le "Sugg" est différent de l'"Actuel", clique sur le bouton <strong>"Appliquer"</strong> : ça met à jour ton seuil automatiquement, tu n'as rien à calculer.<br>
+    3. Va ensuite dans le mode "Commande" pour commander les produits qui en ont besoin.</p>
+
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="closeModal('modal-info-analyse')">J'ai compris</button>
     </div>
   </div>
 </div>
