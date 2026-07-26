@@ -116,6 +116,7 @@
   #stock-search { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #c6c6c8; font-size: 14px; margin-bottom: 8px; }
   .stock-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
   .stock-header-row h2 { margin: 0; }
+  .stock-total-row { display: flex; justify-content: space-between; font-weight: 700; padding: 10px 4px 4px 4px; font-size: 14px; border-top: 1px solid #e5e5ea; margin-top: auto; flex-shrink: 0; color: #007aff; } /* Nouvelle ligne CSS pour le total */
 
   /* Commande view */
   #view-commande .stock-container { overflow-y: auto; }
@@ -195,7 +196,7 @@
     <div id="video-container">
       <video id="video" playsinline autoplay muted></video>
       <div class="scan-guide" id="scan-guide"></div>
-      <div id="video-flash"></div> 
+      <div id="video-flash"></div>
     </div>
     <div id="flash-msg"></div>
     <div class="manual-row">
@@ -230,6 +231,11 @@
           <thead><tr><th>Article</th><th>Qté</th><th>Seuil</th><th>Prix</th><th></th></tr></thead>
           <tbody id="stock-body"></tbody>
         </table>
+      </div>
+      <!-- LIGNE AJOUTÉE : Valorisation totale du stock -->
+      <div class="stock-total-row">
+        <span>Valeur du stock affiché :</span>
+        <span id="stock-total-val">0.00 €</span>
       </div>
     </div>
   </div>
@@ -420,8 +426,7 @@ let candidateCode = null;
 let candidateCount = 0;
 let lastValidatedCode = null;
 let lastValidatedTime = 0;
-// Récupérer la dernière caméra sauvegardée, sinon null
-let selectedDeviceId = localStorage.getItem('preferredCamera') || null;
+let selectedDeviceId = null;
 const flashMsg = document.getElementById('flash-msg');
 
 // Fonction pour jouer un bip sonore clair lors de la détection
@@ -485,25 +490,8 @@ async function updateCameraList() {
 
 function switchCamera(deviceId) {
   selectedDeviceId = deviceId;
-  localStorage.setItem('preferredCamera', deviceId);
-  
-  // 1. On arrête le scanner en cours
   stopScanner();
-  
-  // 2. Astuce pour iPhone : on force la libération de la vidéo
-  const videoEl = document.getElementById('video');
-  if (videoEl && videoEl.srcObject) {
-    videoEl.srcObject.getTracks().forEach(track => track.stop());
-    videoEl.srcObject = null;
-  }
-  
-  // 3. On ajoute un court délai pour laisser Safari nettoyer la mémoire
-  setTimeout(() => {
-    // 4. On recrée une instance toute neuve du lecteur ZXing
-    setupReader(); 
-    // 5. On relance le scanner
-    startScanner();
-  }, 300); // 300 millisecondes de pause suffisent
+  startScanner();
 }
 
 function startScanner() {
@@ -705,16 +693,28 @@ function renderStock() {
     .filter(p => !filter || p.codeBarre.toLowerCase().includes(filter) || (p.designation || '').toLowerCase().includes(filter))
     .sort((a, b) => (a.designation || '').localeCompare(b.designation || ''));
 
+  let totalValeurStock = 0; // Ajout du calcul du total
+
   tbody.innerHTML = list.map(p => {
     const alert = p.qte <= p.seuil;
+    
+    // Calcul de la valeur
+    totalValeurStock += (p.qte * (p.prixAchat || 0));
+
     return `<tr class="${alert ? 'row-alert' : ''}">
       <td>${escapeHtml(p.designation || '(sans nom)')}<br><span class="muted">${escapeHtml(p.codeBarre)}</span></td>
       <td>${p.qte}</td>
       <td>${p.seuil}</td>
-      <td>${p.prixAchat.toFixed(2)} €</td>
+      <td>${p.prixAchat !== undefined ? p.prixAchat.toFixed(2) : '0.00'} €</td>
       <td><button class="btn-small" onclick="openModalAjust('${p.codeBarre}')">Ajuster</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" class="muted">Aucun article</td></tr>';
+
+  // Mise à jour de l'affichage du total en bas
+  const totalEl = document.getElementById('stock-total-val');
+  if (totalEl) {
+    totalEl.textContent = totalValeurStock.toFixed(2) + ' €';
+  }
 }
 
 function renderHistorique(mode) {
