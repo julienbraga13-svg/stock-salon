@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Douchette iOS - Ultra Rapide</title>
+    <title>Douchette iOS - Ultra Sécurisée</title>
     
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     
@@ -100,7 +100,7 @@
 </head>
 <body>
 
-    <h1>📦 Douchette iOS Turbo</h1>
+    <h1>📦 Douchette iOS Sécurisée</h1>
     
     <button id="btn-start" class="btn">Démarrer la douchette</button>
     <button id="btn-stop" class="btn btn-stop">Arrêter la caméra</button>
@@ -143,7 +143,6 @@
         const flashMsg = document.getElementById('flash-msg');
 
         function initScanner() {
-            // Utilisation d'un lecteur configuré spécifiquement pour les formats 1D majeurs (vitesse accrue)
             const hints = new Map();
             const formats = [
                 ZXing.BarcodeFormat.EAN_13,
@@ -156,7 +155,6 @@
 
             codeReader = new ZXing.BrowserMultiFormatReader(hints);
             
-            // Contraintes avancées pour forcer l'autofocus continu et une bonne résolution fluide sur iOS
             const constraints = {
                 video: {
                     facingMode: "environment",
@@ -182,9 +180,8 @@
                         candidateCount = 1; 
                     }
 
-                    // On réduit à 1 seule validation si le décodage est confiant, ou garde 2 pour la sécurité. 
-                    // Ici avec les hints ciblés, le moteur est plus sûr de lui.
-                    if (candidateCount >= 1) { 
+                    // Exige 3 lectures identiques d'affilée pour valider le code
+                    if (candidateCount >= 3) { 
                         lastValidatedCode = rawCode;
                         lastValidatedTime = currentTime;
                         
