@@ -85,7 +85,7 @@
 </head>
 <body>
 
-    <h1>📦 Gestion de Stock2</h1>
+    <h1>📦 Gestion de Stock3</h1>
     
     <!-- Boutons de contrôle -->
     <button id="btn-start" class="btn">Démarrer la douchette</button>
@@ -127,25 +127,13 @@
         function initScanner() {
             html5QrCode = new Html5Qrcode("reader");
 
-            // 1. On liste uniquement les formats de codes-barres (produits/colis)
-            // Cela empêche l'iPhone de chercher des QR codes et décuple la vitesse de calcul
-            const formats = [
-                Html5QrcodeSupportedFormats.EAN_13,
-                Html5QrcodeSupportedFormats.EAN_8,
-                Html5QrcodeSupportedFormats.CODE_128,
-                Html5QrcodeSupportedFormats.CODE_39,
-                Html5QrcodeSupportedFormats.UPC_A,
-                Html5QrcodeSupportedFormats.UPC_E
-            ];
-
+            // Configuration minimaliste : on retire qrbox et les filtres de format
             const config = { 
-                fps: 15, // On augmente les images analysées par seconde
-                qrbox: { width: 250, height: 150 }, // On revient à la dimension stable de la V1
-                aspectRatio: 1.333334,
-                formatsToSupport: formats // Application du filtre de vitesse
+                fps: 10, 
+                aspectRatio: 1.333334 
+                // Sans qrbox, l'algorithme scanne l'intégralité du flux vidéo
             };
 
-            // 2. Commande simple et stricte, seule acceptée par Safari
             html5QrCode.start(
                 { facingMode: "environment" }, 
                 config, 
