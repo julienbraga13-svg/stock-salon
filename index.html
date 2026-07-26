@@ -85,7 +85,7 @@
 </head>
 <body>
 
-    <h1>📦 Gestion de Stock</h1>
+    <h1>📦 Gestion de Stock1</h1>
     
     <!-- Boutons de contrôle -->
     <button id="btn-start" class="btn">Démarrer la douchette</button>
@@ -127,17 +127,18 @@
         function initScanner() {
             html5QrCode = new Html5Qrcode("reader");
 
+            // Paramètres de la zone de détection (2ème argument)
             const config = { 
                 fps: 10, 
-                // On élargit la boîte à 300px. 
-                // Cela vous permet de reculer le téléphone, là où l'image sera nette.
                 qrbox: { width: 300, height: 120 }, 
                 aspectRatio: 1.333334
             };
 
-            // On revient à la configuration de base, la seule qu'iOS accepte sans broncher.
+            // L'objet caméra (1er argument) : strictement 1 seule clé requise par la bibliothèque
+            const cameraConfig = { facingMode: "environment" };
+
             html5QrCode.start(
-                { facingMode: "environment" }, 
+                cameraConfig, 
                 config, 
                 onScanSuccess, 
                 onScanFailure
