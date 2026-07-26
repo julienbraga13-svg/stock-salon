@@ -163,7 +163,6 @@
   </div>
 
   <!-- Vue Commande -->
-<!-- Vue Commande -->
   <div class="view" id="view-commande">
     <div class="stock-container">
       <div class="fournisseur-bar" style="flex-direction: column; align-items: stretch; gap: 6px;">
@@ -370,6 +369,19 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-nouveau-frs">
+  <div class="modal-card">
+    <h3>Nouveau fournisseur</h3>
+    <label>Nom du fournisseur</label><input type="text" id="new-frs-nom" placeholder="Nom de l'entreprise">
+    <label>Email de commande</label><input type="text" id="new-frs-mail" placeholder="email@fournisseur.com">
+    <label>Franco de port (€ TTC)</label><input type="number" id="new-frs-franco" min="0" step="0.01" value="0">
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-nouveau-frs')">Annuler</button>
+      <button class="btn-primary" onclick="submitNouveauFournisseurRapide()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -463,7 +475,6 @@ let dernierArticleScanneCode = null;
 async function handleScannedCode(code) {
   if (!dataLoaded) { toast('Chargement en cours...'); return; }
   
-  // GESTION MODE RECEPTION DE COMMANDE
   if (currentMode === 'reception') {
     if (!commandeEnCoursSelectionnee) { toast("Veuillez d'abord sélectionner une commande ci-dessus !"); return; }
     
@@ -481,7 +492,6 @@ async function handleScannedCode(code) {
     return;
   }
 
-  // GESTIONS MODES ENTREE / SORTIE
   const p = state.produits.find(x => x.codeBarre === String(code));
   if (currentMode === 'sortie' && !p) { toast("Article inconnu. Créez-le en mode Entrée."); return; }
   if (!p) { openModalNouveau(code); return; }
@@ -496,25 +506,6 @@ async function handleScannedCode(code) {
     toast((type === 'Entrée' ? '+1 ' : '-1 ') + (p.designation || code) + ' → ' + res.newQte);
     await loadData();
   } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
-}
-function chargerFournisseurSelectionne() {
-  const select = document.getElementById('cfg-select-frs');
-  const idx = select.value;
-  if (idx === "") {
-    document.getElementById('cfg-frs-nom').value = '';
-    document.getElementById('cfg-frs-mail').value = '';
-    document.getElementById('cfg-frs-franco').value = '';
-    return;
-  }
-  try {
-    let list = JSON.parse(state.config.fournisseurs || '[]');
-    const f = list[idx];
-    if (f) {
-      document.getElementById('cfg-frs-nom').value = f.nom || '';
-      document.getElementById('cfg-frs-mail').value = f.email || '';
-      document.getElementById('cfg-frs-franco').value = f.franco || '';
-    }
-  } catch(e){}
 }
 
 async function supprimerFournisseurActuel() {
@@ -541,6 +532,7 @@ async function supprimerFournisseurActuel() {
     setGlobalLoading(false);
   }
 }
+
 async function validerQuantiteReception() {
   if (!commandeEnCoursSelectionnee || !dernierArticleScanneCode) return;
   const qteSaisie = Number(document.getElementById('rec-manual-qty').value) || 1;
@@ -939,7 +931,6 @@ function renderConfigForm() {
   setVal('cfg-nom', c.nom); setVal('cfg-representant', c.representant); setVal('cfg-siret', c.siret);
   setVal('cfg-adresse', c.adresse); setVal('cfg-mail', c.mail); setVal('cfg-tel', c.tel);
 
-  // Gestion de la liste déroulante des fournisseurs dans la vue Commande
   let list = [];
   try { list = JSON.parse(c.fournisseurs || '[]'); } catch(e){}
   
@@ -964,7 +955,6 @@ function updateFrsDetailsUI() {
 
 function selectionnerFournisseurCommande(idx) {
   if (idx === "") {
-    // Si désélection
     saveConfigFields({ fournisseurNom: '', fournisseurEmail: '', fournisseurFranco: 0 });
     return;
   }
@@ -1005,7 +995,6 @@ async function submitNouveauFournisseurRapide() {
   closeModal('modal-nouveau-frs');
   setGlobalLoading(true);
   try {
-    // On envoie le nouveau fournisseur à sauvegarder (le backend gère l'ajout dans la liste globale et la sélection active)
     const res = await apiPost('saveConfig', { ...state.config, fournisseurNom: nom, fournisseurEmail: email, fournisseurFranco: franco });
     if (res.error) throw new Error(res.error);
     toast('Fournisseur ajouté et sélectionné ✔');
@@ -1035,7 +1024,9 @@ async function supprimerFournisseurActuelCommande() {
 }
 
 function chargerFournisseurSelectionne() {
-  const idx = document.getElementById('cfg-select-frs').value;
+  const selectElem = document.getElementById('cfg-select-frs');
+  if (!selectElem) return;
+  const idx = selectElem.value;
   if (idx === "") {
     document.getElementById('cfg-frs-nom').value = '';
     document.getElementById('cfg-frs-mail').value = '';
@@ -1114,19 +1105,11 @@ function setGlobalLoading(show) { document.getElementById('loading-bar').classLi
 function escapeHtml(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function formatDate(dateStr) { if (!dateStr) return ''; const d = new Date(dateStr); return isNaN(d) ? dateStr : d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
 
-window.addEventListener('DOMContentLoaded', () => { setupReader(); loadData(); switchMode('sortie'); });
- <div class="modal-overlay" id="modal-nouveau-frs">
-  <div class="modal-card">
-    <h3>Nouveau fournisseur</h3>
-    <label>Nom du fournisseur</label><input type="text" id="new-frs-nom" placeholder="Nom de l'entreprise">
-    <label>Email de commande</label><input type="text" id="new-frs-mail" placeholder="email@fournisseur.com">
-    <label>Franco de port (€ TTC)</label><input type="number" id="new-frs-franco" min="0" step="0.01" value="0">
-    <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal('modal-nouveau-frs')">Annuler</button>
-      <button class="btn-primary" onclick="submitNouveauFournisseurRapide()">Enregistrer</button>
-    </div>
-  </div>
-</div>
+window.addEventListener('DOMContentLoaded', () => { 
+  setupReader(); 
+  loadData(); 
+  switchMode('sortie'); 
+});
 </script>
 </body>
 </html>
