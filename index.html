@@ -42,13 +42,13 @@
     transition: all 0.15s;
   }
   .nav-btn .ic { font-size: 19px; }
-  .nav-btn[data-mode="entree"].active   { background: #34c759; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(52,199,89,0.4); }
-  .nav-btn[data-mode="sortie"].active   { background: #ff3b30; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(255,59,48,0.4); }
-  .nav-btn[data-mode="stock"].active    { background: #007aff; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(0,122,255,0.4); }
+  .nav-btn[data-mode="entree"].active    { background: #34c759; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(52,199,89,0.4); }
+  .nav-btn[data-mode="sortie"].active    { background: #ff3b30; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(255,59,48,0.4); }
+  .nav-btn[data-mode="stock"].active     { background: #007aff; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(0,122,255,0.4); }
   .nav-btn[data-mode="commande"].active { background: #ff9500; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(255,149,0,0.4); }
   .nav-btn[data-mode="analyse"].active  { background: #5856d6; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(88,86,214,0.4); }
 
-  /* ===== Scanner (logique de détection conservée) ===== */
+  /* ===== Scanner ===== */
   .scanner-section { flex-shrink: 0; display: flex; flex-direction: column; }
   .mode-label { text-align: center; font-weight: 700; font-size: 13px; margin-bottom: 4px; color: #34c759; }
   .scanner-section.mode-sortie .mode-label { color: #ff3b30; }
@@ -540,7 +540,6 @@ async function loadData() {
     if (data.error) { showErrorBanner('Erreur script : ' + data.error); return; }
     hideErrorBanner();
     
-    // Sécurité maximale : si le serveur renvoie un tableau ou oublie config, on sécurise
     state = {
       produits: data.produits || [],
       historique: data.historique || [],
@@ -792,25 +791,16 @@ async function submitAjust() {
   const newQte = Number(document.getElementById('adj-qty').value);
   const newPrix = Number(document.getElementById('adj-prix').value);
   const newSeuil = Number(document.getElementById('adj-seuil').value);
+  const commentaire = document.getElementById('adj-comment').value.trim();
   
   if (isNaN(newQte) || newQte < 0) { toast('Quantité invalide'); return; }
   if (isNaN(newPrix) || newPrix < 0) { toast('Prix invalide'); return; }
   if (isNaN(newSeuil) || newSeuil < 0) { toast('Seuil invalide'); return; }
-  
-  const comment = document.getElementById('adj-comment').value.trim();
+
   closeModal('modal-ajust');
   setGlobalLoading(true);
-  
   try {
-    // On envoie les 3 informations d'un coup
-    const res = await apiPost('adjustStock', { 
-      codeBarre: code, 
-      newQte, 
-      prixAchat: newPrix, 
-      seuil: newSeuil, 
-      commentaire: comment 
-    });
-    
+    const res = await apiPost('adjustProduct', { codeBarre: code, qte: newQte, prixAchat: newPrix, seuil: newSeuil, commentaire });
     if (res.error) { toast('Erreur : ' + res.error); return; }
     toast('Article mis à jour ✔');
     await loadData();
@@ -821,8 +811,8 @@ async function submitAjust() {
   }
 }
 
-async function submitReglages() {
-  const data = {
+function submitReglages() {
+  const configData = {
     nom: document.getElementById('cfg-nom').value.trim(),
     representant: document.getElementById('cfg-representant').value.trim(),
     siret: document.getElementById('cfg-siret').value.trim(),
@@ -834,69 +824,69 @@ async function submitReglages() {
   };
   closeModal('modal-reglages');
   setGlobalLoading(true);
-  try {
-    const res = await apiPost('saveConfig', data);
-    if (res.error) { toast('Erreur : ' + res.error); return; }
-    toast('Réglages enregistrés ✔');
-    await loadData();
-  } catch (err) {
-    toast('Erreur réseau : ' + err.message);
-  } finally {
+  apiPost('saveConfig', configData).then(res => {
     setGlobalLoading(false);
-  }
+    if (res.error) { toast('Erreur : ' + res.error); return; }
+    state.config = configData;
+    renderConfigForm();
+    toast('Réglages enregistrés ✔');
+  }).catch(err => {
+    setGlobalLoading(false);
+    toast('Erreur réseau : ' + err.message);
+  });
 }
 
 async function envoyerCommande() {
   if (panier.length === 0) { toast('Panier vide'); return; }
-  const c = state.config || {}; 
-  if (!c.fournisseurEmail) { 
-    toast('Email fournisseur non configuré (allez dans réglages)'); 
-    showModal('modal-reglages');
-    return; 
-  }
+  if (!state.config.fournisseurEmail) { toast('Email fournisseur non configuré dans les réglages'); return; }
   
-  if (!confirm('Envoyer la commande de ' + panier.length + ' article(s) à ' + (c.fournisseurNom || 'le fournisseur') + ' ?')) return;
+  if (!confirm('Envoyer la commande par email au fournisseur ' + state.config.fournisseurNom + ' ?')) return;
 
+  document.getElementById('send-btn').disabled = true;
   setGlobalLoading(true);
   try {
-    const res = await apiPost('sendOrder', { panier });
+    const res = await apiPost('sendOrder', { panier, config: state.config });
     if (res.error) { toast('Erreur : ' + res.error); return; }
-    toast('Commande envoyée avec succès ✔');
+    toast('Commande envoyée avec succès par email ! 📧');
     panier = [];
     renderPanier();
   } catch (err) {
     toast('Erreur réseau : ' + err.message);
   } finally {
+    document.getElementById('send-btn').disabled = false;
     setGlobalLoading(false);
   }
 }
 
-// ================== ANALYSE ==================
 function renderAnalyse() {
-  const weeksFactor = Number(document.getElementById('analyse-couverture').value) || 2;
+  const couvertureWeeks = Number(document.getElementById('analyse-couverture').value) || 2;
   const tbody = document.getElementById('analyse-body');
-  const list = [...state.produits].sort((a, b) => (b.conso12m || 0) - (a.conso12m || 0));
+  
+  const stats = state.produits.map(p => {
+    const sortiesProduit = state.historique.filter(h => h.codeBarre === p.codeBarre && h.type === 'Sortie');
+    const totalConso12m = sortiesProduit.reduce((acc, curr) => acc + Number(curr.quantite), 0);
+    const moySemaine = (totalConso12m / 52).toFixed(1);
+    const seuilSuggere = Math.ceil(Number(moySemaine) * couvertureWeeks);
 
-  tbody.innerHTML = list.map(p => {
-    const c12 = p.conso12m || 0;
-    const moySem = c12 / 52;
-    const suggSeuil = Math.ceil(moySem * weeksFactor);
-    const alert = p.seuil < suggSeuil;
-    return `<tr>
-      <td>${escapeHtml(p.designation || p.codeBarre)}</td>
-      <td>${c12}</td>
-      <td>${moySem.toFixed(1)}</td>
-      <td>${p.seuil}</td>
-      <td style="${alert ? 'color:#ff9500; font-weight:700;' : ''}">${suggSeuil}</td>
-      <td><button class="btn-small ${alert ? 'btn-green' : 'btn-ghost'}" onclick="appliquerSeuil('${p.codeBarre}', ${suggSeuil})">Appliquer</button></td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="6" class="muted">Aucune donnée</td></tr>';
+    return { ...p, totalConso12m, moySemaine, seuilSuggere };
+  }).sort((a, b) => b.totalConso12m - a.totalConso12m);
+
+  tbody.innerHTML = stats.map(p => `<tr>
+    <td>${escapeHtml(p.designation || p.codeBarre)}</td>
+    <td>${p.totalConso12m}</td>
+    <td>${p.moySemaine}</td>
+    <td>${p.seuil}</td>
+    <td><strong>${p.seuilSuggere}</strong></td>
+    <td><button class="btn-small btn-primary" onclick="appliquerSeuilSuggere('${p.codeBarre}', ${p.seuilSuggere})">Appliquer</button></td>
+  </tr>`).join('') || '<tr><td colspan="6" class="muted">Aucune donnée d\'analyse</td></tr>';
 }
 
-async function appliquerSeuil(code, newSeuil) {
+async function appliquerSeuilSuggere(code, nouveauSeuil) {
+  const p = findProduit(code);
+  if (!p) return;
   setGlobalLoading(true);
   try {
-    const res = await apiPost('updateSeuil', { codeBarre: code, seuil: newSeuil });
+    const res = await apiPost('adjustProduct', { codeBarre: code, qte: p.qte, prixAchat: p.prixAchat, seuil: nouveauSeuil, commentaire: 'Mise à jour seuil via analyse' });
     if (res.error) { toast('Erreur : ' + res.error); return; }
     toast('Seuil mis à jour ✔');
     await loadData();
@@ -907,46 +897,34 @@ async function appliquerSeuil(code, newSeuil) {
   }
 }
 
-// ================== UTILITAIRES ==================
-function toast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => { t.classList.remove('show'); }, 3000);
-}
-
 function setGlobalLoading(show) {
   const bar = document.getElementById('loading-bar');
   if (show) bar.classList.add('show');
   else bar.classList.remove('show');
 }
 
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
 function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function formatDate(iso) {
-  if (!iso) return '';
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-  } catch (e) {
-    return iso;
-  }
-}
-
-// ================== INIT ==================
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('load', () => {
   setupReader();
-  loadData().then(() => {
-    switchMode('sortie');
-  });
+  loadData();
+  switchMode('entree');
 });
 </script>
 </body>
