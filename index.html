@@ -252,7 +252,7 @@
     </div>
   </div>
 
-  <!-- Vue Analyse (mise à jour des select avec gestion du localStorage) -->
+<!-- Vue Analyse -->
 <div class="view" id="view-analyse">
   <div class="stock-container">
     <h2>Analyse de consommation (12 derniers mois)</h2>
@@ -276,8 +276,19 @@
           <option value="1.5">50%</option>
         </select>
       </div>
+      <!-- AJOUT DU SÉLECTEUR MANQUANT -->
+      <div>
+        <label style="display:inline-block; font-size:11px;">Affichage graphe :</label>
+        <select id="chart-limit" onchange="renderAnalyse()">
+          <option value="5">Top 5</option>
+          <option value="10" selected>Top 10</option>
+          <option value="20">Top 20</option>
+          <option value="all">Tous</option>
+        </select>
+      </div>
     </div>
     <div id="conso-chart-wrap" style="position:relative; height:180px; width:100%; display:none; margin-bottom: 8px;">
+      <h3 id="conso-chart-title" style="font-size:11px; text-align:center; margin:0 0 4px 0;"></h3>
       <canvas id="conso-chart"></canvas>
     </div>
     <div class="table-scroll">
@@ -838,7 +849,8 @@ function renderAnalyse() {
   const tbody = document.getElementById('analyse-body');
   const extraWeeksCoverage = Number(document.getElementById('analyse-couverture').value) || 2;
   const coeffSecurite = Number(document.getElementById('analyse-marge').value) || 1.2;
-  const chartLimitVal = document.getElementById('chart-limit').value;
+  const chartLimitEl = document.getElementById('chart-limit');
+const chartLimitVal = chartLimitEl ? chartLimitEl.value : '10';
   
   if (!analyseConso) { loadAnalyseData(); return; }
 
