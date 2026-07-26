@@ -1,232 +1,768 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Douchette iOS - Grand Guide</title>
-    
-    <script src="https://unpkg.com/@zxing/library@latest"></script>
-    
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f2f2f7;
-            margin: 0;
-            padding: 10px;
-            color: #1c1c1e;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            box-sizing: border-box;
-            overflow: hidden;
-        }
-        h1 {
-            font-size: 18px;
-            text-align: center;
-            margin: 0 0 8px 0;
-        }
-        #video-container {
-            width: 100%;
-            height: 28vh; /* Légèrement ajusté pour donner plus d'espace au grand cadre */
-            border-radius: 12px;
-            overflow: hidden;
-            background-color: #000;
-            margin-bottom: 10px;
-            position: relative;
-            flex-shrink: 0;
-        }
-        video {
-            width: 100%;
-            height: 100%;
-            display: block;
-            object-fit: cover;
-        }
-        /* Rectangle vert encore plus grand occupant presque tout l'espace vidéo */
-        .scan-guide {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 95%;
-            height: 85%; 
-            border: 2px solid #34c759;
-            border-radius: 8px;
-            box-shadow: 0 0 0 2000px rgba(0,0,0,0.4);
-            pointer-events: none;
-        }
-        #flash-msg {
-            text-align: center;
-            font-weight: bold;
-            color: #34c759;
-            height: 20px;
-            font-size: 14px;
-            margin-bottom: 5px;
-            flex-shrink: 0;
-        }
-        .stock-container {
-            background: white;
-            border-radius: 12px;
-            padding: 10px 15px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .stock-container h2 {
-            font-size: 16px;
-            margin: 0 0 8px 0;
-            flex-shrink: 0;
-        }
-        .table-scroll {
-            overflow-y: auto;
-            flex-grow: 1;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            padding: 8px 10px;
-            text-align: left;
-            border-bottom: 1px solid #c6c6c8;
-        }
-        th { 
-            font-weight: 600; 
-            color: #8e8e93; 
-            font-size: 13px; 
-            position: sticky;
-            top: 0;
-            background: white;
-        }
-        .badge {
-            background-color: #34c759;
-            color: white;
-            padding: 3px 8px;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: bold;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Gestion de Stock</title>
+<script src="https://unpkg.com/@zxing/library@latest"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f2f2f7;
+    margin: 0;
+    padding: 8px;
+    color: #1c1c1e;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+  h1 { font-size: 17px; text-align: center; margin: 0 0 8px 0; }
+  h2 { font-size: 15px; margin: 0 0 8px 0; }
+  .muted { color: #8e8e93; font-size: 12px; }
+
+  /* Nav segmentée */
+  .nav-bar {
+    display: flex; background: #e5e5ea; border-radius: 10px; padding: 3px;
+    flex-shrink: 0; margin-bottom: 8px; gap: 3px;
+  }
+  .nav-btn {
+    flex: 1; border: none; background: transparent; padding: 8px 2px;
+    font-size: 12px; font-weight: 600; border-radius: 8px; color: #3c3c43;
+    cursor: pointer;
+  }
+  .nav-btn.active { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.15); color: #007aff; }
+
+  /* Scanner (identique à la logique d'origine) */
+  .scanner-section { flex-shrink: 0; display: flex; flex-direction: column; }
+  .mode-label { text-align: center; font-weight: 700; font-size: 13px; margin-bottom: 4px; color: #34c759; }
+  .scanner-section.mode-sortie .mode-label { color: #ff3b30; }
+  #video-container {
+    width: 100%; height: 24vh; border-radius: 12px; overflow: hidden;
+    background-color: #000; margin-bottom: 6px; position: relative;
+  }
+  video { width: 100%; height: 100%; display: block; object-fit: cover; }
+  .scan-guide {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 95%; height: 85%; border: 2px solid #34c759; border-radius: 8px;
+    box-shadow: 0 0 0 2000px rgba(0,0,0,0.4); pointer-events: none;
+  }
+  .scanner-section.mode-sortie .scan-guide { border-color: #ff3b30; }
+  #flash-msg { text-align: center; font-weight: bold; color: #34c759; height: 18px; font-size: 13px; }
+  .manual-row { display: flex; gap: 6px; margin-bottom: 8px; }
+  .manual-row input {
+    flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid #c6c6c8; font-size: 14px;
+  }
+  .manual-row button {
+    padding: 8px 14px; border-radius: 8px; border: none; background: #007aff; color: #fff; font-weight: 600;
+  }
+
+  /* Vues */
+  .view { flex: 1; min-height: 0; display: none; flex-direction: column; overflow: hidden; }
+  .stock-container {
+    background: white; border-radius: 12px; padding: 10px 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .table-scroll { overflow-y: auto; flex-grow: 1; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 7px 8px; text-align: left; border-bottom: 1px solid #e5e5ea; font-size: 13px; vertical-align: middle; }
+  th { font-weight: 600; color: #8e8e93; font-size: 12px; position: sticky; top: 0; background: white; }
+  .row-alert { background: #fff2ef; }
+  .badge { background-color: #34c759; color: white; padding: 3px 8px; border-radius: 10px; font-size: 12px; font-weight: bold; }
+
+  .btn-small { padding: 5px 10px; border-radius: 7px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-green { background: #34c759; color: #fff; }
+  .btn-red { background: #ff3b30; color: #fff; }
+  .btn-primary { background: #007aff; color: #fff; padding: 10px; border-radius: 9px; border: none; font-weight: 600; font-size: 14px; flex: 1; }
+  .btn-secondary { background: #e5e5ea; color: #1c1c1e; padding: 10px; border-radius: 9px; border: none; font-weight: 600; font-size: 14px; flex: 1; }
+
+  /* Stock view */
+  #stock-search { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #c6c6c8; font-size: 14px; margin-bottom: 8px; }
+  .stock-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
+  .stock-header-row h2 { margin: 0; }
+
+  /* Commande view */
+  #view-commande .stock-container { overflow-y: auto; }
+  fieldset { border: 1px solid #e5e5ea; border-radius: 10px; margin: 0 0 10px 0; padding: 8px 10px; }
+  legend { font-size: 13px; font-weight: 700; color: #3c3c43; padding: 0 4px; }
+  .field-row { display: flex; gap: 6px; margin-bottom: 6px; }
+  .field-row > div { flex: 1; }
+  label { display: block; font-size: 11px; color: #8e8e93; margin-bottom: 2px; }
+  input[type="text"], input[type="number"], input[type="email"], select {
+    width: 100%; padding: 7px 9px; border-radius: 7px; border: 1px solid #c6c6c8; font-size: 13px;
+  }
+  .qty-input { width: 64px; }
+  .cmd-numero-row { display: flex; gap: 6px; align-items: flex-end; }
+  .cmd-numero-row > div:first-child { flex: 1; }
+  .panier-total-row { display: flex; justify-content: space-between; font-weight: 700; padding: 8px 0; font-size: 14px; }
+  .send-row { display: flex; gap: 8px; margin-top: 8px; }
+  .send-row button { width: 100%; padding: 12px; border-radius: 10px; border: none; background: #34c759; color: #fff; font-weight: 700; font-size: 15px; }
+  .send-row button:disabled { background: #c6c6c8; }
+
+  /* Modales */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    align-items: center; justify-content: center; z-index: 100; padding: 16px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; padding: 16px; width: 100%; max-width: 360px;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal-card h3 { margin: 0 0 6px 0; font-size: 16px; }
+  .modal-card label { margin-top: 8px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #1c1c1e; color: #fff; padding: 10px 18px; border-radius: 20px; font-size: 13px;
+    opacity: 0; transition: all 0.25s; z-index: 200; max-width: 90vw; text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  #loading-bar {
+    position: fixed; top: 0; left: 0; height: 3px; width: 100%; background: #007aff;
+    transform: scaleX(0); transform-origin: left; transition: transform 0.2s; z-index: 300;
+  }
+  #loading-bar.show { animation: loading-anim 1s infinite; }
+  @keyframes loading-anim { 0%{transform:scaleX(0);} 50%{transform:scaleX(0.7);} 100%{transform:scaleX(1);} }
+</style>
 </head>
 <body>
 
-    <h1>📦 Douchette Auto</h1>
-    
-    <div id="video-container">
-        <video id="video" playsinline autoplay muted></video>
-        <div class="scan-guide" id="scan-guide"></div>
+<div id="loading-bar"></div>
+<h1>📦 Gestion de Stock</h1>
+
+<div class="nav-bar">
+  <button class="nav-btn" data-mode="entree" onclick="switchMode('entree')">📥 Entrée</button>
+  <button class="nav-btn" data-mode="sortie" onclick="switchMode('sortie')">📤 Sortie</button>
+  <button class="nav-btn" data-mode="stock" onclick="switchMode('stock')">📊 Stock</button>
+  <button class="nav-btn" data-mode="commande" onclick="switchMode('commande')">🧾 Commande</button>
+</div>
+
+<div class="scanner-section" id="scanner-section">
+  <div class="mode-label" id="scanner-mode-label">Mode Entrée</div>
+  <div id="video-container">
+    <video id="video" playsinline autoplay muted></video>
+    <div class="scan-guide" id="scan-guide"></div>
+  </div>
+  <div id="flash-msg"></div>
+  <div class="manual-row">
+    <input type="text" id="manual-code" placeholder="Code illisible ? Saisir manuellement">
+    <button onclick="manualSubmit()">Valider</button>
+  </div>
+</div>
+
+<!-- Vue Entrée -->
+<div class="view" id="view-entree">
+  <div class="stock-container">
+    <h2>Historique des entrées</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Date</th><th>Article</th><th>Qté</th><th>Stock après</th></tr></thead>
+        <tbody id="entree-histo-body"></tbody>
+      </table>
     </div>
+  </div>
+</div>
 
-    <div id="flash-msg"></div>
-
-    <div class="stock-container">
-        <h2>Inventaire</h2>
-        <div class="table-scroll">
-            <table id="stock-table">
-                <thead>
-                    <tr>
-                        <th>Code Barre</th>
-                        <th>Quantité</th>
-                    </tr>
-                </thead>
-                <tbody id="stock-body">
-                </tbody>
-            </table>
-        </div>
+<!-- Vue Sortie -->
+<div class="view" id="view-sortie">
+  <div class="stock-container">
+    <h2>Historique des sorties</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Date</th><th>Article</th><th>Qté</th><th>Stock après</th></tr></thead>
+        <tbody id="sortie-histo-body"></tbody>
+      </table>
     </div>
+  </div>
+</div>
 
-    <script>
-        let codeReader;
-        let stock = {}; 
-        
-        let candidateCode = null;
-        let candidateCount = 0;
-        let lastValidatedCode = null;
-        let lastValidatedTime = 0;
+<!-- Vue Stock -->
+<div class="view" id="view-stock">
+  <div class="stock-container">
+    <div class="stock-header-row">
+      <h2>Stock global</h2>
+      <button class="btn-small btn-green" onclick="openModalNouveau(null)">+ Nouvel article</button>
+    </div>
+    <input type="text" id="stock-search" placeholder="Rechercher (nom ou code)..." oninput="renderStock()">
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Article</th><th>Qté</th><th>Seuil</th><th>Prix</th><th></th></tr></thead>
+        <tbody id="stock-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
-        const stockBody = document.getElementById('stock-body');
-        const flashMsg = document.getElementById('flash-msg');
+<!-- Vue Commande -->
+<div class="view" id="view-commande">
+  <div class="stock-container">
+    <h2>Commande fournisseur</h2>
 
-        function initScanner() {
-            const hints = new Map();
-            const formats = [
-                ZXing.BarcodeFormat.EAN_13,
-                ZXing.BarcodeFormat.EAN_8,
-                ZXing.BarcodeFormat.CODE_128,
-                ZXing.BarcodeFormat.CODE_39,
-                ZXing.BarcodeFormat.UPC_A
-            ];
-            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+    <fieldset>
+      <legend>Mes coordonnées (entête de commande)</legend>
+      <div class="field-row">
+        <div><label>Nom entreprise</label><input type="text" id="cfg-nom"></div>
+      </div>
+      <div class="field-row">
+        <div><label>Représenté par</label><input type="text" id="cfg-representant"></div>
+        <div><label>SIRET</label><input type="text" id="cfg-siret"></div>
+      </div>
+      <div class="field-row">
+        <div><label>Adresse</label><input type="text" id="cfg-adresse"></div>
+      </div>
+      <div class="field-row">
+        <div><label>Email</label><input type="text" id="cfg-mail"></div>
+        <div><label>Téléphone</label><input type="text" id="cfg-tel"></div>
+      </div>
+    </fieldset>
 
-            codeReader = new ZXing.BrowserMultiFormatReader(hints);
-            
-            const constraints = {
-                video: {
-                    facingMode: "environment",
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    advanced: [{ focusMode: "continuous" }]
-                }
-            };
+    <fieldset>
+      <legend>Suggestions (sous le seuil critique)</legend>
+      <table>
+        <thead><tr><th>Article</th><th>Qté</th><th></th></tr></thead>
+        <tbody id="suggestions-body"></tbody>
+      </table>
+    </fieldset>
 
-            codeReader.decodeFromConstraints(constraints, 'video', (result, err) => {
-                if (result) {
-                    const rawCode = result.getText().trim();
-                    const currentTime = new Date().getTime();
+    <fieldset>
+      <legend>Ajout manuel</legend>
+      <div class="field-row">
+        <div style="flex:2"><label>Article</label><select id="manual-select"></select></div>
+        <div><label>Qté</label><input type="number" id="manual-qty" min="1" value="1"></div>
+      </div>
+      <button class="btn-small btn-green" onclick="addManualToPanier()">Ajouter au panier</button>
+    </fieldset>
 
-                    if (rawCode === lastValidatedCode && (currentTime - lastValidatedTime) < 1500) {
-                        return;
-                    }
+    <fieldset>
+      <legend>Panier</legend>
+      <table>
+        <thead><tr><th>Article</th><th>Qté</th><th>Total</th><th></th></tr></thead>
+        <tbody id="panier-body"></tbody>
+      </table>
+      <div class="panier-total-row"><span>Total</span><span id="panier-total">0.00 €</span></div>
+    </fieldset>
 
-                    if (rawCode === candidateCode) {
-                        candidateCount++;
-                    } else {
-                        candidateCode = rawCode;
-                        candidateCount = 1; 
-                    }
+    <fieldset>
+      <legend>Envoi</legend>
+      <div class="cmd-numero-row">
+        <div><label>N° de commande</label><input type="text" id="cmd-numero"></div>
+        <button class="btn-small" onclick="document.getElementById('cmd-numero').value=genNumCommande()">↻</button>
+      </div>
+      <label>Email fournisseur (destinataire)</label>
+      <input type="text" id="cmd-email" placeholder="fournisseur@exemple.com">
+      <div class="send-row">
+        <button id="send-btn" onclick="envoyerCommande()">Envoyer la commande (PDF par email)</button>
+      </div>
+    </fieldset>
+  </div>
+</div>
 
-                    if (candidateCount >= 3) { 
-                        lastValidatedCode = rawCode;
-                        lastValidatedTime = currentTime;
-                        
-                        candidateCode = null;
-                        candidateCount = 0;
+<!-- Modales -->
+<div class="modal-overlay" id="modal-mouvement">
+  <div class="modal-card">
+    <h3 id="mv-title">Mouvement</h3>
+    <p id="mv-info" class="muted"></p>
+    <label>Quantité</label>
+    <input type="number" id="mv-qty" min="1" value="1">
+    <label>Commentaire (optionnel)</label>
+    <input type="text" id="mv-comment" placeholder="ex: livraison fournisseur X">
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-mouvement')">Annuler</button>
+      <button class="btn-primary" onclick="submitMouvement()">Valider</button>
+    </div>
+  </div>
+</div>
 
-                        ajouterAuStock(rawCode);
+<div class="modal-overlay" id="modal-nouveau">
+  <div class="modal-card">
+    <h3>Nouvel article</h3>
+    <label>Code barre</label>
+    <input type="text" id="new-code" placeholder="Saisir ou scanner un code">
+    <label>Désignation</label>
+    <input type="text" id="new-designation" placeholder="Nom du produit">
+    <label>Quantité initiale</label>
+    <input type="number" id="new-qte" min="0" value="0">
+    <label>Prix d'achat (€)</label>
+    <input type="number" id="new-prix" min="0" step="0.01" value="0">
+    <label>Contenance</label>
+    <input type="text" id="new-contenance" placeholder="ex: carton de 12">
+    <label>Seuil critique de réappro</label>
+    <input type="number" id="new-seuil" min="0" value="0">
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-nouveau')">Annuler</button>
+      <button class="btn-primary" onclick="submitNouveau()">Créer la fiche</button>
+    </div>
+  </div>
+</div>
 
-                        if (navigator.vibrate) navigator.vibrate(100);
-                        flashMsg.textContent = "✔ " + rawCode;
-                        setTimeout(() => { flashMsg.textContent = ""; }, 1000);
-                    }
-                }
-            })
-            .catch((err) => {
-                console.error("Erreur d'accès à la caméra : ", err);
-            });
-        }
+<div class="modal-overlay" id="modal-ajust">
+  <div class="modal-card">
+    <h3>Réajustement stock</h3>
+    <p id="adj-info" class="muted"></p>
+    <label>Nouvelle quantité</label>
+    <input type="number" id="adj-qty" min="0">
+    <label>Motif</label>
+    <input type="text" id="adj-comment" placeholder="ex: inventaire physique">
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-ajust')">Annuler</button>
+      <button class="btn-primary" onclick="submitAjust()">Valider</button>
+    </div>
+  </div>
+</div>
 
-        function ajouterAuStock(code) {
-            if (stock[code]) {
-                stock[code]++;
-            } else {
-                stock[code] = 1;
-            }
-            updateStockUI();
-        }
+<div id="toast"></div>
 
-        function updateStockUI() {
-            stockBody.innerHTML = ''; 
-            for (const [code, quantity] of Object.entries(stock)) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${code}</td><td><span class="badge">${quantity}</span></td>`;
-                stockBody.appendChild(tr);
-            }
-        }
+<script>
+// ================== CONFIG ==================
+const API_URL = 'https://script.google.com/macros/s/AKfycbyrH8_Qyma2r25rnMlgavbr6EVASPhgdgQkqGYQedUH0taFFvklPp41g8QRajropCd4/exec';
 
-        window.addEventListener('DOMContentLoaded', () => {
-            initScanner();
-        });
-    </script>
+// ================== ETAT ==================
+let state = { produits: [], historique: [], config: {} };
+let panier = [];
+let currentMode = 'entree';
+let pendingCode = null;
+let dataLoaded = false;
+
+// ================== SCANNER (logique conservée à l'identique) ==================
+let codeReader;
+let scannerRunning = false;
+let candidateCode = null;
+let candidateCount = 0;
+let lastValidatedCode = null;
+let lastValidatedTime = 0;
+const flashMsg = document.getElementById('flash-msg');
+
+function setupReader() {
+  const hints = new Map();
+  const formats = [
+    ZXing.BarcodeFormat.EAN_13,
+    ZXing.BarcodeFormat.EAN_8,
+    ZXing.BarcodeFormat.CODE_128,
+    ZXing.BarcodeFormat.CODE_39,
+    ZXing.BarcodeFormat.UPC_A
+  ];
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+  codeReader = new ZXing.BrowserMultiFormatReader(hints);
+}
+
+function startScanner() {
+  if (scannerRunning) return;
+  scannerRunning = true;
+  const constraints = {
+    video: {
+      facingMode: "environment",
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+      advanced: [{ focusMode: "continuous" }]
+    }
+  };
+
+  codeReader.decodeFromConstraints(constraints, 'video', (result, err) => {
+    if (result) {
+      const rawCode = result.getText().trim();
+      const currentTime = new Date().getTime();
+
+      if (rawCode === lastValidatedCode && (currentTime - lastValidatedTime) < 1500) {
+        return;
+      }
+
+      if (rawCode === candidateCode) {
+        candidateCount++;
+      } else {
+        candidateCode = rawCode;
+        candidateCount = 1;
+      }
+
+      if (candidateCount >= 3) {
+        lastValidatedCode = rawCode;
+        lastValidatedTime = currentTime;
+        candidateCode = null;
+        candidateCount = 0;
+
+        if (navigator.vibrate) navigator.vibrate(100);
+        flashMsg.textContent = "✔ " + rawCode;
+        setTimeout(() => { flashMsg.textContent = ""; }, 1000);
+
+        handleScannedCode(rawCode);
+      }
+    }
+  })
+  .catch((err) => {
+    console.error("Erreur d'accès à la caméra : ", err);
+    toast("Erreur caméra : accès refusé ou indisponible");
+  });
+}
+
+function stopScanner() {
+  if (!scannerRunning) return;
+  scannerRunning = false;
+  try { codeReader.reset(); } catch (e) {}
+}
+
+function manualSubmit() {
+  const input = document.getElementById('manual-code');
+  const val = input.value.trim();
+  if (!val) return;
+  input.value = '';
+  handleScannedCode(val);
+}
+
+// ================== ROUTAGE SCAN ==================
+function handleScannedCode(code) {
+  if (!dataLoaded) { toast('Chargement des données, patientez...'); return; }
+  const p = findProduit(code);
+  if (currentMode === 'sortie' && !p) {
+    toast("Article inconnu (" + code + "). Créez-le d'abord en mode Entrée.");
+    return;
+  }
+  if (!p) {
+    openModalNouveau(code);
+  } else {
+    openModalMouvement(code, p);
+  }
+}
+
+function findProduit(code) {
+  return state.produits.find(p => p.codeBarre === String(code));
+}
+
+// ================== API ==================
+async function apiGet(action) {
+  const res = await fetch(API_URL + '?action=' + encodeURIComponent(action));
+  return res.json();
+}
+async function apiPost(action, data) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action, data })
+  });
+  return res.json();
+}
+
+async function loadData() {
+  setGlobalLoading(true);
+  try {
+    const data = await apiGet('getData');
+    setGlobalLoading(false);
+    if (data.error) { toast('Erreur chargement : ' + data.error); return; }
+    state = data;
+    dataLoaded = true;
+    renderAll();
+  } catch (err) {
+    setGlobalLoading(false);
+    toast('Erreur réseau : ' + err.message);
+  }
+}
+
+// ================== NAVIGATION ==================
+function switchMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+  document.getElementById('view-' + mode).style.display = 'flex';
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+
+  const scannerSection = document.getElementById('scanner-section');
+  if (mode === 'entree' || mode === 'sortie') {
+    scannerSection.style.display = 'flex';
+    scannerSection.classList.toggle('mode-sortie', mode === 'sortie');
+    document.getElementById('scanner-mode-label').textContent = mode === 'entree' ? 'Mode Entrée' : 'Mode Sortie';
+    startScanner();
+  } else {
+    scannerSection.style.display = 'none';
+    stopScanner();
+  }
+
+  if (mode === 'stock') renderStock();
+  if (mode === 'commande') { renderSuggestions(); renderManualSelect(); }
+}
+
+// ================== RENDU ==================
+function renderAll() {
+  renderStock();
+  renderHistorique('entree');
+  renderHistorique('sortie');
+  renderSuggestions();
+  renderManualSelect();
+  renderConfigForm();
+  renderPanier();
+  const numeroField = document.getElementById('cmd-numero');
+  if (!numeroField.value) numeroField.value = genNumCommande();
+}
+
+function renderStock() {
+  const tbody = document.getElementById('stock-body');
+  const filter = document.getElementById('stock-search').value.trim().toLowerCase();
+  const list = state.produits
+    .filter(p => !filter || p.codeBarre.toLowerCase().includes(filter) || (p.designation || '').toLowerCase().includes(filter))
+    .sort((a, b) => (a.designation || '').localeCompare(b.designation || ''));
+
+  tbody.innerHTML = list.map(p => {
+    const alert = p.qte <= p.seuil;
+    return `<tr class="${alert ? 'row-alert' : ''}">
+      <td>${escapeHtml(p.designation || '(sans nom)')}<br><span class="muted">${escapeHtml(p.codeBarre)}</span></td>
+      <td>${p.qte}</td>
+      <td>${p.seuil}</td>
+      <td>${p.prixAchat.toFixed(2)} €</td>
+      <td><button class="btn-small" onclick="openModalAjust('${p.codeBarre}')">Ajuster</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" class="muted">Aucun article</td></tr>';
+}
+
+function renderHistorique(mode) {
+  const type = mode === 'entree' ? 'Entrée' : 'Sortie';
+  const list = state.historique.filter(h => h.type === type).slice(0, 50);
+  const tbody = document.getElementById(mode + '-histo-body');
+  tbody.innerHTML = list.map(h => `<tr>
+      <td>${formatDate(h.date)}</td>
+      <td>${escapeHtml(h.designation || h.codeBarre)}</td>
+      <td>${h.quantite}</td>
+      <td>${h.qteApres}</td>
+    </tr>`).join('') || '<tr><td colspan="4" class="muted">Aucun mouvement</td></tr>';
+}
+
+function renderSuggestions() {
+  const tbody = document.getElementById('suggestions-body');
+  const list = state.produits.filter(p => p.qte <= p.seuil);
+  tbody.innerHTML = list.map(p => {
+    const sugg = Math.max(p.seuil - p.qte, 1);
+    return `<tr>
+      <td>${escapeHtml(p.designation || p.codeBarre)}<br><span class="muted">${p.qte}/${p.seuil}</span></td>
+      <td><input type="number" min="1" value="${sugg}" id="sugg-qty-${p.codeBarre}" class="qty-input"></td>
+      <td><button class="btn-small btn-green" onclick="addToPanier('${p.codeBarre}')">Ajouter</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="3" class="muted">Aucun article sous le seuil 🎉</td></tr>';
+}
+
+function renderManualSelect() {
+  const sel = document.getElementById('manual-select');
+  const list = [...state.produits].sort((a, b) => (a.designation || '').localeCompare(b.designation || ''));
+  sel.innerHTML = '<option value="">-- choisir un article --</option>' +
+    list.map(p => `<option value="${p.codeBarre}">${escapeHtml(p.designation || p.codeBarre)} (${p.codeBarre})</option>`).join('');
+}
+
+function renderConfigForm() {
+  const c = state.config || {};
+  document.getElementById('cfg-nom').value = c.nom || '';
+  document.getElementById('cfg-representant').value = c.representant || '';
+  document.getElementById('cfg-siret').value = c.siret || '';
+  document.getElementById('cfg-adresse').value = c.adresse || '';
+  document.getElementById('cfg-mail').value = c.mail || '';
+  document.getElementById('cfg-tel').value = c.tel || '';
+}
+
+function renderPanier() {
+  const tbody = document.getElementById('panier-body');
+  let total = 0;
+  tbody.innerHTML = panier.map((a, i) => {
+    const t = a.qte * a.prixAchat;
+    total += t;
+    return `<tr>
+      <td>${escapeHtml(a.designation || a.codeBarre)}</td>
+      <td><input type="number" min="1" value="${a.qte}" class="qty-input" onchange="updatePanierQty(${i}, this.value)"></td>
+      <td>${t.toFixed(2)} €</td>
+      <td><button class="btn-small btn-red" onclick="removeFromPanier(${i})">✕</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="4" class="muted">Panier vide</td></tr>';
+  document.getElementById('panier-total').textContent = total.toFixed(2) + ' €';
+}
+
+// ================== ACTIONS PANIER ==================
+function addToPanier(code) {
+  const p = findProduit(code);
+  if (!p) return;
+  const input = document.getElementById('sugg-qty-' + code);
+  const qty = Number(input.value) || 1;
+  const existing = panier.find(x => x.codeBarre === code);
+  if (existing) existing.qte += qty;
+  else panier.push({ codeBarre: p.codeBarre, designation: p.designation, qte: qty, prixAchat: p.prixAchat });
+  renderPanier();
+  toast('Ajouté au panier');
+}
+
+function addManualToPanier() {
+  const code = document.getElementById('manual-select').value;
+  if (!code) { toast('Choisissez un article'); return; }
+  const qty = Number(document.getElementById('manual-qty').value) || 1;
+  const p = findProduit(code);
+  const existing = panier.find(x => x.codeBarre === code);
+  if (existing) existing.qte += qty;
+  else panier.push({ codeBarre: p.codeBarre, designation: p.designation, qte: qty, prixAchat: p.prixAchat });
+  renderPanier();
+  toast('Ajouté au panier');
+}
+
+function updatePanierQty(i, val) {
+  panier[i].qte = Math.max(Number(val) || 1, 1);
+  renderPanier();
+}
+function removeFromPanier(i) {
+  panier.splice(i, 1);
+  renderPanier();
+}
+
+// ================== MODALES ==================
+function showModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+function openModalMouvement(code, p) {
+  pendingCode = code;
+  document.getElementById('mv-title').textContent = (currentMode === 'entree' ? 'Entrée' : 'Sortie') + ' de stock';
+  document.getElementById('mv-info').textContent = (p.designation || code) + ' — stock actuel : ' + p.qte;
+  document.getElementById('mv-qty').value = 1;
+  document.getElementById('mv-comment').value = '';
+  showModal('modal-mouvement');
+}
+
+async function submitMouvement() {
+  const code = pendingCode;
+  const p = findProduit(code);
+  const qty = Number(document.getElementById('mv-qty').value);
+  if (!qty || qty <= 0) { toast('Quantité invalide'); return; }
+  const type = currentMode === 'entree' ? 'Entrée' : 'Sortie';
+  if (type === 'Sortie' && qty > p.qte) {
+    if (!confirm('Stock insuffisant (actuel : ' + p.qte + '). Continuer quand même ?')) return;
+  }
+  const comment = document.getElementById('mv-comment').value.trim();
+  closeModal('modal-mouvement');
+  setGlobalLoading(true);
+  const res = await apiPost('movement', { codeBarre: code, type, quantite: qty, commentaire: comment });
+  setGlobalLoading(false);
+  if (res.error) { toast('Erreur : ' + res.error); return; }
+  toast((type === 'Entrée' ? 'Entrée' : 'Sortie') + ' enregistrée ✔');
+  await loadData();
+}
+
+function openModalNouveau(code) {
+  document.getElementById('new-code').value = code || '';
+  document.getElementById('new-designation').value = '';
+  document.getElementById('new-qte').value = 0;
+  document.getElementById('new-prix').value = 0;
+  document.getElementById('new-contenance').value = '';
+  document.getElementById('new-seuil').value = 0;
+  showModal('modal-nouveau');
+}
+
+async function submitNouveau() {
+  const codeBarre = document.getElementById('new-code').value.trim();
+  if (!codeBarre) { toast('Code barre requis'); return; }
+  if (findProduit(codeBarre)) { toast('Ce code existe déjà'); return; }
+  const designation = document.getElementById('new-designation').value.trim();
+  if (!designation) { toast('Désignation requise'); return; }
+  const data = {
+    codeBarre,
+    designation,
+    qte: Number(document.getElementById('new-qte').value) || 0,
+    prixAchat: Number(document.getElementById('new-prix').value) || 0,
+    contenance: document.getElementById('new-contenance').value.trim(),
+    seuil: Number(document.getElementById('new-seuil').value) || 0
+  };
+  closeModal('modal-nouveau');
+  setGlobalLoading(true);
+  const res = await apiPost('upsertProduct', data);
+  setGlobalLoading(false);
+  if (res.error) { toast('Erreur : ' + res.error); return; }
+  toast('Article créé ✔');
+  await loadData();
+}
+
+function openModalAjust(code) {
+  const p = findProduit(code);
+  if (!p) return;
+  pendingCode = code;
+  document.getElementById('adj-info').textContent = (p.designation || code) + ' — stock actuel : ' + p.qte;
+  document.getElementById('adj-qty').value = p.qte;
+  document.getElementById('adj-comment').value = '';
+  showModal('modal-ajust');
+}
+
+async function submitAjust() {
+  const code = pendingCode;
+  const newQte = Number(document.getElementById('adj-qty').value);
+  if (isNaN(newQte) || newQte < 0) { toast('Quantité invalide'); return; }
+  const comment = document.getElementById('adj-comment').value.trim();
+  closeModal('modal-ajust');
+  setGlobalLoading(true);
+  const res = await apiPost('adjustStock', { codeBarre: code, newQte, commentaire: comment });
+  setGlobalLoading(false);
+  if (res.error) { toast('Erreur : ' + res.error); return; }
+  toast('Stock ajusté ✔');
+  await loadData();
+}
+
+// ================== COMMANDE ==================
+function genNumCommande() {
+  const d = new Date();
+  const ymd = d.getFullYear().toString() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+  const rand = Math.floor(100000 + Math.random() * 900000);
+  return ymd + '-' + rand;
+}
+
+async function envoyerCommande() {
+  if (panier.length === 0) { toast('Le panier est vide'); return; }
+  const email = document.getElementById('cmd-email').value.trim();
+  if (!email) { toast('Indiquez un email destinataire'); return; }
+  const entreprise = {
+    nom: document.getElementById('cfg-nom').value.trim(),
+    representant: document.getElementById('cfg-representant').value.trim(),
+    siret: document.getElementById('cfg-siret').value.trim(),
+    adresse: document.getElementById('cfg-adresse').value.trim(),
+    mail: document.getElementById('cfg-mail').value.trim(),
+    tel: document.getElementById('cfg-tel').value.trim()
+  };
+  const numero = document.getElementById('cmd-numero').value.trim() || genNumCommande();
+
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true; btn.textContent = 'Envoi en cours...';
+  setGlobalLoading(true);
+  try {
+    await apiPost('saveConfig', entreprise);
+    const res = await apiPost('sendOrder', { numeroCommande: numero, entreprise, emailDestinataire: email, articles: panier });
+    if (res.error) { toast('Erreur : ' + res.error); return; }
+    toast('Commande envoyée ✔');
+    panier = [];
+    renderPanier();
+    document.getElementById('cmd-numero').value = genNumCommande();
+  } catch (err) {
+    toast('Erreur réseau : ' + err.message);
+  } finally {
+    setGlobalLoading(false);
+    btn.disabled = false; btn.textContent = 'Envoyer la commande (PDF par email)';
+  }
+}
+
+// ================== UTILITAIRES ==================
+function escapeHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function formatDate(iso) {
+  try { return new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+  catch (e) { return iso; }
+}
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+function setGlobalLoading(on) {
+  document.getElementById('loading-bar').classList.toggle('show', on);
+}
+
+// ================== INIT ==================
+window.addEventListener('DOMContentLoaded', () => {
+  setupReader();
+  switchMode('entree');
+  loadData();
+});
+</script>
 </body>
 </html>
