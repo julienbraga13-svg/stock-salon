@@ -8,89 +8,43 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   * { box-sizing: border-box; }
-  html, body { 
-    height: 100%; 
-    height: 100dvh; 
-    overflow: hidden;
-  }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: #f2f2f7;
-    margin: 0;
-    padding: 8px;
-    color: #1c1c1e;
-    display: flex;
-    flex-direction: column;
-  }
+  html, body { height: 100%; height: 100dvh; overflow: hidden; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f2f2f7; margin: 0; padding: 8px; color: #1c1c1e; display: flex; flex-direction: column; }
   h1 { font-size: 16px; text-align: center; margin: 0 0 6px 0; flex-shrink: 0; }
   h2 { font-size: 15px; margin: 0 0 8px 0; }
   .muted { color: #8e8e93; font-size: 12px; }
 
-  /* ===== Layout principal ===== */
   #main-content { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 
-  /* ===== Nav bar (bas d'écran) ===== */
-  .nav-bar {
-    display: flex; background: #fff; border-radius: 14px; padding: 6px;
-    flex-shrink: 0; margin-top: 8px; gap: 4px; box-shadow: 0 -2px 10px rgba(0,0,0,0.06);
-    padding-bottom: max(6px, env(safe-area-inset-bottom));
-  }
-  .nav-btn {
-    flex: 1; border: none; background: transparent; padding: 9px 2px;
-    font-size: 11px; font-weight: 700; border-radius: 10px; color: #8e8e93;
-    cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px;
-    transition: all 0.15s;
-  }
+  /* Nav bar */
+  .nav-bar { display: flex; background: #fff; border-radius: 14px; padding: 6px; flex-shrink: 0; margin-top: 8px; gap: 4px; box-shadow: 0 -2px 10px rgba(0,0,0,0.06); padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+  .nav-btn { flex: 1; border: none; background: transparent; padding: 9px 2px; font-size: 11px; font-weight: 700; border-radius: 10px; color: #8e8e93; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; transition: all 0.15s; }
   .nav-btn .ic { font-size: 19px; }
   .nav-btn[data-mode="sortie"].active    { background: #ff3b30; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(255,59,48,0.4); }
   .nav-btn[data-mode="stock"].active     { background: #007aff; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(0,122,255,0.4); }
-  .nav-btn[data-mode="commande"].active { background: #ff9500; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(255,149,0,0.4); }
-  .nav-btn[data-mode="analyse"].active  { background: #5856d6; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(88,86,214,0.4); }
+  .nav-btn[data-mode="commande"].active  { background: #ff9500; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(255,149,0,0.4); }
+  .nav-btn[data-mode="analyse"].active   { background: #5856d6; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(88,86,214,0.4); }
   .nav-btn[data-mode="entree"].active    { background: #34c759; color: #fff; transform: translateY(-2px); box-shadow: 0 3px 8px rgba(52,199,89,0.4); }
 
-  /* ===== Scanner ===== */
+  /* Scanner */
   .scanner-section { flex-shrink: 0; display: flex; flex-direction: column; }
   .mode-label { text-align: center; font-weight: 700; font-size: 13px; margin-bottom: 4px; color: #34c759; }
   .scanner-section.mode-sortie .mode-label { color: #ff3b30; }
-  
-  /* Selecteur de caméra */
-  #camera-select {
-    display: none; width: 100%; padding: 8px; border-radius: 8px;
-    border: 1px solid #c6c6c8; font-size: 14px; margin-bottom: 6px;
-    background: #fff; outline: none;
-  }
-
-  #video-container {
-    width: 100%; height: 22vh; border-radius: 12px; overflow: hidden;
-    background-color: #000; margin-bottom: 6px; position: relative;
-  }
+  #camera-select { display: none; width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #c6c6c8; font-size: 14px; margin-bottom: 6px; background: #fff; outline: none; }
+  #video-container { width: 100%; height: 22vh; border-radius: 12px; overflow: hidden; background-color: #000; margin-bottom: 6px; position: relative; }
   video { width: 100%; height: 100%; display: block; object-fit: cover; }
-  
-  /* Flash Effect */
-  #flash-overlay {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background: white; opacity: 0; pointer-events: none;
-    transition: opacity 0.3s ease-out; z-index: 10;
-  }
+  #flash-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; transition: opacity 0.3s ease-out; z-index: 10; }
   #flash-overlay.flash-active { opacity: 0.9; transition: none; }
-
-  .scan-guide {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: 95%; height: 85%; border: 2px solid #34c759; border-radius: 8px;
-    box-shadow: 0 0 0 2000px rgba(0,0,0,0.4); pointer-events: none; z-index: 5;
-  }
+  .scan-guide { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95%; height: 85%; border: 2px solid #34c759; border-radius: 8px; box-shadow: 0 0 0 2000px rgba(0,0,0,0.4); pointer-events: none; z-index: 5; }
   .scanner-section.mode-sortie .scan-guide { border-color: #ff3b30; }
   #flash-msg { text-align: center; font-weight: bold; color: #34c759; height: 18px; font-size: 13px; }
   .manual-row { display: flex; gap: 6px; margin-bottom: 8px; }
   .manual-row input { flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid #c6c6c8; font-size: 14px; }
   .manual-row button { padding: 8px 14px; border-radius: 8px; border: none; background: #007aff; color: #fff; font-weight: 600; }
 
-  /* ===== Vues ===== */
+  /* Vues & Tableaux */
   .view { flex: 1; min-height: 0; display: none; flex-direction: column; overflow: hidden; }
-  .stock-container {
-    background: white; border-radius: 12px; padding: 10px 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;
-  }
+  .stock-container { background: white; border-radius: 12px; padding: 10px 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
   .table-scroll { overflow-y: auto; flex-grow: 1; }
   table { width: 100%; border-collapse: collapse; }
   th, td { padding: 7px 8px; text-align: left; border-bottom: 1px solid #e5e5ea; font-size: 13px; vertical-align: middle; }
@@ -103,89 +57,58 @@
   .btn-primary { background: #007aff; color: #fff; padding: 10px; border-radius: 9px; border: none; font-weight: 600; font-size: 14px; flex: 1; }
   .btn-secondary { background: #e5e5ea; color: #1c1c1e; padding: 10px; border-radius: 9px; border: none; font-weight: 600; font-size: 14px; flex: 1; }
 
-  /* Stock view */
+  /* Stock & Summary */
   #stock-search { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #c6c6c8; font-size: 14px; margin-bottom: 8px; }
   .stock-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
-  .stock-header-row h2 { margin: 0; }
+  .stock-summary { display: flex; justify-content: space-between; background: #f2f2f7; border: 1px solid #e5e5ea; padding: 8px 10px; border-radius: 8px; font-size: 13px; font-weight: 700; color: #1c1c1e; margin-bottom: 8px; }
 
-  /* Commande view */
+  /* Commandes */
   #view-commande .stock-container { overflow-y: auto; }
-  .fournisseur-bar {
-    display: flex; justify-content: space-between; align-items: center; background: #fff7ec;
-    border: 1px solid #ffe2b3; border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; font-size: 12px;
-  }
+  .fournisseur-bar { display: flex; justify-content: space-between; align-items: center; background: #fff7ec; border: 1px solid #ffe2b3; border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; font-size: 12px; }
   fieldset { border: 1px solid #e5e5ea; border-radius: 10px; margin: 0 0 10px 0; padding: 8px 10px; }
   legend { font-size: 13px; font-weight: 700; color: #3c3c43; padding: 0 4px; }
   .field-row { display: flex; gap: 6px; margin-bottom: 6px; }
   .field-row > div { flex: 1; }
   label { display: block; font-size: 11px; color: #8e8e93; margin-bottom: 2px; }
-  input[type="text"], input[type="number"], select {
-    width: 100%; padding: 7px 9px; border-radius: 7px; border: 1px solid #c6c6c8; font-size: 13px;
-  }
+  input[type="text"], input[type="number"], select { width: 100%; padding: 7px 9px; border-radius: 7px; border: 1px solid #c6c6c8; font-size: 13px; }
   .qty-input { width: 60px; }
   .panier-total-row { display: flex; justify-content: space-between; font-weight: 700; padding: 8px 0; font-size: 14px; }
-  .send-row { display: flex; gap: 8px; margin-top: 8px; }
   .send-row button { width: 100%; padding: 12px; border-radius: 10px; border: none; background: #34c759; color: #fff; font-weight: 700; font-size: 15px; }
   .send-row button:disabled { background: #c6c6c8; }
 
-  /* Analyse view */
+  /* Analyses */
   .analyse-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .analyse-toolbar label { margin: 0; white-space: nowrap; }
   .analyse-toolbar select { width: auto; }
   #conso-chart-wrap { display: none; background: #f8f8fa; border-radius: 10px; padding: 8px; margin-bottom: 10px; height: 160px; flex-shrink: 0; }
-  #conso-chart-title { font-size: 12px; font-weight: 700; margin: 0 0 4px 0; color: #3c3c43; }
+  #conso-chart-title { font-size: 12px; font-weight: 700; margin: 0 0 4px 0; color: #3c3c43; text-align: center;}
 
-  /* Modales */
-  .modal-overlay {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
-    align-items: center; justify-content: center; z-index: 100; padding: 16px;
-  }
+  /* Modales, Toast, Loading */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); align-items: center; justify-content: center; z-index: 100; padding: 16px; }
   .modal-overlay.show { display: flex; }
   .modal-card { background: #fff; border-radius: 14px; padding: 16px; width: 100%; max-width: 360px; max-height: 90vh; overflow-y: auto; }
   .modal-card h3 { margin: 0 0 6px 0; font-size: 16px; }
-  .modal-card label { margin-top: 8px; }
   .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
-
-  /* Toast */
-  #toast {
-    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px);
-    background: #1c1c1e; color: #fff; padding: 10px 18px; border-radius: 20px; font-size: 13px;
-    opacity: 0; transition: all 0.25s; z-index: 200; max-width: 90vw; text-align: center;
-  }
+  #toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px); background: #1c1c1e; color: #fff; padding: 10px 18px; border-radius: 20px; font-size: 13px; opacity: 0; transition: all 0.25s; z-index: 200; max-width: 90vw; text-align: center; }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-  #loading-bar {
-    position: fixed; top: 0; left: 0; height: 3px; width: 100%; background: #007aff;
-    transform: scaleX(0); transform-origin: left; transition: transform 0.2s; z-index: 300;
-  }
+  #loading-bar { position: fixed; top: 0; left: 0; height: 3px; width: 100%; background: #007aff; transform: scaleX(0); transform-origin: left; transition: transform 0.2s; z-index: 300; }
   #loading-bar.show { animation: loading-anim 1s infinite; }
   @keyframes loading-anim { 0%{transform:scaleX(0);} 50%{transform:scaleX(0.7);} 100%{transform:scaleX(1);} }
-
-  #error-banner {
-    display: none; flex-shrink: 0; background: #ff3b30; color: #fff; padding: 8px 10px;
-    border-radius: 10px; font-size: 12px; margin-bottom: 8px; align-items: center; gap: 8px;
-  }
-  #error-banner.show { display: flex; }
-  #error-banner span { flex: 1; word-break: break-word; }
-  #error-banner button { background: #fff; color: #ff3b30; border: none; border-radius: 6px; padding: 5px 8px; font-weight: 700; font-size: 11px; }
 </style>
 </head>
 <body>
 
 <div id="loading-bar"></div>
-<div id="error-banner"><span id="error-banner-text"></span><button onclick="loadData()">Réessayer</button></div>
 <h1>📦 Gestion de Stock</h1>
 
 <div id="main-content">
-
   <!-- Scanner -->
   <div class="scanner-section" id="scanner-section">
     <div class="mode-label" id="scanner-mode-label">Mode Entrée</div>
-    <select id="camera-select" onchange="changeCamera()"></select> <!-- NOUVEAU: Selecteur caméra -->
+    <select id="camera-select" onchange="changeCamera()"></select> 
     <div id="video-container">
       <video id="video" playsinline autoplay muted></video>
       <div class="scan-guide" id="scan-guide"></div>
-      <div id="flash-overlay"></div> <!-- NOUVEAU: Flash overlay -->
+      <div id="flash-overlay"></div>
     </div>
     <div id="flash-msg"></div>
     <div class="manual-row">
@@ -194,7 +117,7 @@
     </div>
   </div>
 
-   <!-- Vue Sortie -->
+  <!-- Vue Sortie -->
   <div class="view" id="view-sortie">
     <div class="stock-container">
       <h2>Historique des sorties</h2>
@@ -215,9 +138,13 @@
         <button class="btn-small btn-green" onclick="openModalNouveau(null)">+ Nouvel article</button>
       </div>
       <input type="text" id="stock-search" placeholder="Rechercher (nom ou code)..." oninput="renderStock()">
+      <div class="stock-summary" id="stock-summary">
+        <span>Quantité totale : <span id="tot-qty">0</span></span>
+        <span>Valeur : <span id="tot-val">0.00 €</span></span>
+      </div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Article</th><th>Qté</th><th>Seuil</th><th>Prix</th><th></th></tr></thead>
+          <thead><tr><th>Article</th><th>Qté/Val</th><th>Seuil</th><th>Prix.U</th><th></th></tr></thead>
           <tbody id="stock-body"></tbody>
         </table>
       </div>
@@ -231,7 +158,6 @@
         <span>Fournisseur : <strong id="frs-display">non configuré</strong></span>
         <button class="btn-small btn-ghost" onclick="showModal('modal-reglages')">⚙ Réglages</button>
       </div>
-
       <fieldset>
         <legend>Suggestions (sous le seuil critique)</legend>
         <table>
@@ -239,7 +165,6 @@
           <tbody id="suggestions-body"></tbody>
         </table>
       </fieldset>
-
       <fieldset>
         <legend>Ajout manuel</legend>
         <div class="field-row">
@@ -248,7 +173,6 @@
         </div>
         <button class="btn-small btn-green" onclick="addManualToPanier()">Ajouter au panier</button>
       </fieldset>
-
       <fieldset>
         <legend>Panier</legend>
         <table>
@@ -257,7 +181,6 @@
         </table>
         <div class="panier-total-row"><span>Total</span><span id="panier-total">0.00 €</span></div>
       </fieldset>
-
       <div class="send-row">
         <button id="send-btn" onclick="envoyerCommande()">Envoyer la commande (PDF par email)</button>
       </div>
@@ -269,7 +192,7 @@
     <div class="stock-container">
       <h2>Analyse de consommation (12 derniers mois)</h2>
       <div class="analyse-toolbar">
-        <label>Couverture souhaitée du seuil :</label>
+        <label>Couverture du seuil :</label>
         <select id="analyse-couverture" onchange="renderAnalyse()">
           <option value="1">1 semaine</option>
           <option value="2" selected>2 semaines</option>
@@ -284,15 +207,13 @@
       </div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Article</th><th>Conso 12m</th><th>Moy/sem</th><th>Seuil actuel</th><th>Suggéré</th><th></th></tr></thead>
+          <thead><tr><th>Article</th><th>Sorties 12m</th><th>Moy/sem</th><th>Seuil</th><th></th></tr></thead>
           <tbody id="analyse-body"></tbody>
         </table>
       </div>
     </div>
   </div>
 
-</div>
- 
   <!-- Vue Entrée -->
   <div class="view" id="view-entree">
     <div class="stock-container">
@@ -305,8 +226,9 @@
       </div>
     </div>
   </div>
- 
-<!-- Nav bar (bas d'écran) -->
+</div>
+
+<!-- Nav bar -->
 <div class="nav-bar">
   <button class="nav-btn" data-mode="sortie" onclick="switchMode('sortie')"><span class="ic">📤</span>Sortie</button>
   <button class="nav-btn" data-mode="stock" onclick="switchMode('stock')"><span class="ic">📊</span>Stock</button>
@@ -319,18 +241,12 @@
 <div class="modal-overlay" id="modal-nouveau">
   <div class="modal-card">
     <h3>Nouvel article</h3>
-    <label>Code barre</label>
-    <input type="text" id="new-code" placeholder="Saisir ou scanner un code">
-    <label>Désignation</label>
-    <input type="text" id="new-designation" placeholder="Nom du produit">
-    <label>Quantité initiale</label>
-    <input type="number" id="new-qte" min="0" value="0">
-    <label>Prix d'achat (€)</label>
-    <input type="number" id="new-prix" min="0" step="0.01" value="0">
-    <label>Contenance</label>
-    <input type="text" id="new-contenance" placeholder="ex: carton de 12">
-    <label>Seuil critique de réappro</label>
-    <input type="number" id="new-seuil" min="0" value="0">
+    <label>Code barre</label><input type="text" id="new-code" placeholder="Saisir ou scanner un code">
+    <label>Désignation</label><input type="text" id="new-designation" placeholder="Nom du produit">
+    <label>Quantité initiale</label><input type="number" id="new-qte" min="0" value="0">
+    <label>Prix d'achat (€)</label><input type="number" id="new-prix" min="0" step="0.01" value="0">
+    <label>Contenance</label><input type="text" id="new-contenance" placeholder="ex: carton de 12">
+    <label>Seuil critique</label><input type="number" id="new-seuil" min="0" value="0">
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-nouveau')">Annuler</button>
       <button class="btn-primary" onclick="submitNouveau()">Créer la fiche</button>
@@ -342,14 +258,10 @@
   <div class="modal-card">
     <h3>Modifier l'article</h3>
     <p id="adj-info" class="muted"></p>
-    <label>Nouvelle quantité</label>
-    <input type="number" id="adj-qty" min="0">
-    <label>Prix d'achat (€)</label>
-    <input type="number" id="adj-prix" min="0" step="0.01">
-    <label>Seuil critique de réappro</label>
-    <input type="number" id="adj-seuil" min="0">
-    <label>Motif de l'ajustement</label>
-    <input type="text" id="adj-comment" placeholder="ex: inventaire physique, correction prix...">
+    <label>Nouvelle quantité</label><input type="number" id="adj-qty" min="0">
+    <label>Prix d'achat (€)</label><input type="number" id="adj-prix" min="0" step="0.01">
+    <label>Seuil critique</label><input type="number" id="adj-seuil" min="0">
+    <label>Motif de l'ajustement</label><input type="text" id="adj-comment" placeholder="ex: inventaire physique...">
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-ajust')">Annuler</button>
       <button class="btn-primary" onclick="submitAjust()">Valider</button>
@@ -362,21 +274,17 @@
     <h3>Réglages commande</h3>
     <fieldset>
       <legend>Fournisseur destinataire</legend>
-      <label>Nom fournisseur</label>
-      <input type="text" id="cfg-frs-nom">
-      <label>Email fournisseur</label>
-      <input type="text" id="cfg-frs-mail">
+      <label>Nom</label><input type="text" id="cfg-frs-nom">
+      <label>Email</label><input type="text" id="cfg-frs-mail">
     </fieldset>
     <fieldset>
       <legend>Mes coordonnées (entête)</legend>
-      <label>Nom entreprise</label>
-      <input type="text" id="cfg-nom">
+      <label>Nom entreprise</label><input type="text" id="cfg-nom">
       <div class="field-row">
         <div><label>Représenté par</label><input type="text" id="cfg-representant"></div>
         <div><label>SIRET</label><input type="text" id="cfg-siret"></div>
       </div>
-      <label>Adresse</label>
-      <input type="text" id="cfg-adresse">
+      <label>Adresse</label><input type="text" id="cfg-adresse">
       <div class="field-row">
         <div><label>Email</label><input type="text" id="cfg-mail"></div>
         <div><label>Téléphone</label><input type="text" id="cfg-tel"></div>
@@ -395,63 +303,21 @@
 // ================== CONFIG ==================
 const API_URL = 'https://script.google.com/macros/s/AKfycbyrH8_Qyma2r25rnMlgavbr6EVASPhgdgQkqGYQedUH0taFFvklPp41g8QRajropCd4/exec';
 
-// ================== ETAT ==================
 let state = { produits: [], historique: [], config: {} };
 let panier = [];
 let currentMode = 'entree';
 let dataLoaded = false;
 let consoChartInstance = null;
 
-// ================== AUDIO (BIP) & FLASH ==================
-function playBeep() {
-  try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); 
-    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + 0.15); 
-  } catch (e) {
-    console.log("Audio non supporté ou bloqué par le navigateur", e);
-  }
-}
-
-function triggerFlash() {
-  const overlay = document.getElementById('flash-overlay');
-  overlay.classList.add('flash-active');
-  setTimeout(() => {
-    overlay.classList.remove('flash-active');
-  }, 100);
-}
-
 // ================== SCANNER & CAMERAS ==================
-let codeReader;
-let scannerRunning = false;
-let candidateCode = null;
-let candidateCount = 0;
-let lastValidatedCode = null;
-let lastValidatedTime = 0;
-let selectedDeviceId = null;
+let codeReader, scannerRunning = false, candidateCode = null, candidateCount = 0;
+let lastValidatedCode = null, lastValidatedTime = 0;
+let selectedDeviceId = localStorage.getItem('savedCameraId') || null; 
 let camerasPopulated = false;
-const flashMsg = document.getElementById('flash-msg');
 
 function setupReader() {
   const hints = new Map();
-  const formats = [
-    ZXing.BarcodeFormat.EAN_13,
-    ZXing.BarcodeFormat.EAN_8,
-    ZXing.BarcodeFormat.CODE_128,
-    ZXing.BarcodeFormat.CODE_39,
-    ZXing.BarcodeFormat.UPC_A
-  ];
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.UPC_A]);
   codeReader = new ZXing.BrowserMultiFormatReader(hints);
 }
 
@@ -460,9 +326,8 @@ async function populateCameras() {
   try {
     const devices = await codeReader.listVideoInputDevices();
     const select = document.getElementById('camera-select');
-    
     if (devices.length > 1) {
-      select.innerHTML = '<option value="">-- Objectif par défaut (iPhone recommandé) --</option>';
+      select.innerHTML = '<option value="">-- Objectif par défaut --</option>';
       devices.forEach((device, index) => {
         const option = document.createElement('option');
         option.value = device.deviceId;
@@ -473,14 +338,14 @@ async function populateCameras() {
       select.style.display = 'block';
       camerasPopulated = true;
     }
-  } catch (e) {
-    console.warn("Impossible de lister les caméras :", e);
-  }
+  } catch (e) { console.warn("Caméras indisponibles:", e); }
 }
 
 function changeCamera() {
   const select = document.getElementById('camera-select');
   selectedDeviceId = select.value || null;
+  if (selectedDeviceId) localStorage.setItem('savedCameraId', selectedDeviceId);
+  else localStorage.removeItem('savedCameraId');
   stopScanner();
   setTimeout(() => { startScanner(); }, 300);
 }
@@ -488,429 +353,331 @@ function changeCamera() {
 function startScanner() {
   if (scannerRunning) return;
   scannerRunning = true;
-  
-  let constraints = {
-    video: {
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-      advanced: [{ focusMode: "continuous" }]
-    }
-  };
+  let constraints = { video: { width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: "continuous" }] } };
+  if (selectedDeviceId) constraints.video.deviceId = { exact: selectedDeviceId };
+  else constraints.video.facingMode = "environment";
 
-  // Si l'utilisateur a choisi une caméra, on force l'ID. Sinon on garde le paramètre sûr pour iPhone.
-  if (selectedDeviceId) {
-    constraints.video.deviceId = { exact: selectedDeviceId };
-  } else {
-    constraints.video.facingMode = "environment";
-  }
-
-  // Tenter de lister les caméras un peu après la demande d'accès
   setTimeout(populateCameras, 1500);
 
   codeReader.decodeFromConstraints(constraints, 'video', (result, err) => {
     if (result) {
       const rawCode = result.getText().trim();
       const currentTime = new Date().getTime();
-
-      if (rawCode === lastValidatedCode && (currentTime - lastValidatedTime) < 1500) {
-        return;
-      }
-
-      if (rawCode === candidateCode) {
-        candidateCount++;
-      } else {
-        candidateCode = rawCode;
-        candidateCount = 1;
-      }
+      if (rawCode === lastValidatedCode && (currentTime - lastValidatedTime) < 1500) return;
+      if (rawCode === candidateCode) candidateCount++; else { candidateCode = rawCode; candidateCount = 1; }
 
       if (candidateCount >= 3) {
-        lastValidatedCode = rawCode;
-        lastValidatedTime = currentTime;
-        candidateCode = null;
-        candidateCount = 0;
-
-        playBeep(); // 🔊 Bip
-        triggerFlash(); // ⚡ Flash
-        
+        lastValidatedCode = rawCode; lastValidatedTime = currentTime; candidateCode = null; candidateCount = 0;
+        playBeep(); triggerFlash();
         if (navigator.vibrate) navigator.vibrate(100);
-        
-        flashMsg.textContent = "✔ " + rawCode;
-        setTimeout(() => { flashMsg.textContent = ""; }, 1000);
-
+        document.getElementById('flash-msg').textContent = "✔ " + rawCode;
+        setTimeout(() => { document.getElementById('flash-msg').textContent = ""; }, 1000);
         handleScannedCode(rawCode);
       }
     }
-  })
-  .catch((err) => {
-    console.error("Erreur d'accès à la caméra : ", err);
-    toast("Erreur caméra : accès refusé ou indisponible");
-  });
+  }).catch(console.error);
 }
 
-function stopScanner() {
-  if (!scannerRunning) return;
-  scannerRunning = false;
-  try { codeReader.reset(); } catch (e) {}
-}
+function stopScanner() { if (!scannerRunning) return; scannerRunning = false; try { codeReader.reset(); } catch (e) {} }
+function manualSubmit() { const i = document.getElementById('manual-code'); const v = i.value.trim(); if (!v) return; i.value = ''; playBeep(); handleScannedCode(v); }
+function playBeep() { try { const a = new (window.AudioContext || window.webkitAudioContext)(); const o = a.createOscillator(); const g = a.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(800, a.currentTime); g.gain.setValueAtTime(0.1, a.currentTime); o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + 0.15); } catch(e){} }
+function triggerFlash() { const o = document.getElementById('flash-overlay'); o.classList.add('flash-active'); setTimeout(() => o.classList.remove('flash-active'), 100); }
 
-function manualSubmit() {
-  const input = document.getElementById('manual-code');
-  const val = input.value.trim();
-  if (!val) return;
-  input.value = '';
-  playBeep(); 
-  handleScannedCode(val);
-}
-
-// ================== ROUTAGE SCAN ==================
+// ================== ROUTAGE & API ==================
 async function handleScannedCode(code) {
-  if (!dataLoaded) { toast('Chargement des données, patientez...'); return; }
-  const p = findProduit(code);
-
-  if (currentMode === 'sortie' && !p) {
-    toast("Article inconnu (" + code + "). Créez-le d'abord en mode Entrée.");
-    return;
-  }
-  if (!p) {
-    openModalNouveau(code);
-    return;
-  }
+  if (!dataLoaded) { toast('Chargement en cours...'); return; }
+  const p = state.produits.find(x => x.codeBarre === String(code));
+  if (currentMode === 'sortie' && !p) { toast("Article inconnu. Créez-le en mode Entrée."); return; }
+  if (!p) { openModalNouveau(code); return; }
 
   const type = currentMode === 'entree' ? 'Entrée' : 'Sortie';
-  if (type === 'Sortie' && p.qte <= 0) {
-    if (!confirm('Stock déjà à 0 pour "' + (p.designation || code) + '". Continuer ?')) return;
-  }
+  if (type === 'Sortie' && p.qte <= 0) if (!confirm('Stock à 0. Continuer ?')) return;
 
   setGlobalLoading(true);
   try {
     const res = await apiPost('movement', { codeBarre: code, type, quantite: 1, commentaire: '' });
     if (res.error) { toast('Erreur : ' + res.error); return; }
-    toast((type === 'Entrée' ? '+1 ' : '-1 ') + (p.designation || code) + ' → stock : ' + res.newQte);
+    toast((type === 'Entrée' ? '+1 ' : '-1 ') + (p.designation || code) + ' → ' + res.newQte);
     await loadData();
-  } catch (err) {
-    toast('Erreur réseau : ' + err.message);
-  } finally {
-    setGlobalLoading(false);
-  }
+  } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
 }
 
-function findProduit(code) {
-  return state.produits.find(p => p.codeBarre === String(code));
-}
-
-// ================== API ==================
-async function apiGet(action) {
-  const res = await fetch(API_URL + '?action=' + encodeURIComponent(action));
-  const text = await res.text();
-  if (!res.ok) throw new Error('HTTP ' + res.status + ' - ' + text.slice(0, 200));
-  try { return JSON.parse(text); }
-  catch (e) { throw new Error('Réponse non-JSON : ' + text.slice(0, 200)); }
-}
-
+async function apiGet(action) { const res = await fetch(API_URL + '?action=' + encodeURIComponent(action)); return await res.json(); }
 async function apiPost(action, data) {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, data })
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error('HTTP ' + res.status + ' - ' + text.slice(0, 200));
-  try { return JSON.parse(text); }
-  catch (e) { throw new Error('Réponse non-JSON : ' + text.slice(0, 200)); }
-}
-
-function showErrorBanner(msg) {
-  document.getElementById('error-banner-text').textContent = msg;
-  document.getElementById('error-banner').classList.add('show');
-}
-function hideErrorBanner() {
-  document.getElementById('error-banner').classList.remove('show');
+  const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, data }) });
+  return await res.json();
 }
 
 async function loadData() {
   setGlobalLoading(true);
   try {
     const data = await apiGet('getData');
-    setGlobalLoading(false);
-    if (data.error) { showErrorBanner('Erreur script : ' + data.error); return; }
-    hideErrorBanner();
-    
-    state = {
-      produits: data.produits || [],
-      historique: data.historique || [],
-      config: (data.config && !Array.isArray(data.config)) ? data.config : {}
-    };
-
+    if (data.error) throw new Error(data.error);
+    state = { produits: data.produits || [], historique: data.historique || [], config: data.config || {} };
     dataLoaded = true;
     renderAll();
-  } catch (err) {
-    setGlobalLoading(false);
-    dataLoaded = false;
-    showErrorBanner('Connexion au serveur impossible : ' + err.message);
-  }
+  } catch (err) { toast('Erreur: ' + err.message); } finally { setGlobalLoading(false); }
 }
 
-// ================== NAVIGATION ==================
+// ================== RENDUS (STOCK, ANALYSE...) ==================
 function switchMode(mode) {
   currentMode = mode;
   document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
   document.getElementById('view-' + mode).style.display = 'flex';
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
-
-  const scannerSection = document.getElementById('scanner-section');
+  
+  const sc = document.getElementById('scanner-section');
   if (mode === 'entree' || mode === 'sortie') {
-    scannerSection.style.display = 'flex';
-    scannerSection.classList.toggle('mode-sortie', mode === 'sortie');
+    sc.style.display = 'flex';
+    sc.classList.toggle('mode-sortie', mode === 'sortie');
     document.getElementById('scanner-mode-label').textContent = mode === 'entree' ? 'Mode Entrée' : 'Mode Sortie';
     startScanner();
-  } else {
-    scannerSection.style.display = 'none';
-    stopScanner();
-  }
+  } else { sc.style.display = 'none'; stopScanner(); }
 
   if (mode === 'stock') renderStock();
   if (mode === 'commande') { renderSuggestions(); renderManualSelect(); }
   if (mode === 'analyse') renderAnalyse();
 }
 
-// ================== RENDU ==================
 function renderAll() {
-  renderStock();
-  renderHistorique('entree');
-  renderHistorique('sortie');
-  renderSuggestions();
-  renderManualSelect();
-  renderConfigForm();
-  renderPanier();
+  renderStock(); renderHistorique('entree'); renderHistorique('sortie');
+  renderSuggestions(); renderManualSelect(); renderConfigForm(); renderPanier();
   if (currentMode === 'analyse') renderAnalyse();
 }
 
 function renderStock() {
   const tbody = document.getElementById('stock-body');
   const filter = document.getElementById('stock-search').value.trim().toLowerCase();
-  const list = state.produits
-    .filter(p => !filter || p.codeBarre.toLowerCase().includes(filter) || (p.designation || '').toLowerCase().includes(filter))
-    .sort((a, b) => (a.designation || '').localeCompare(b.designation || ''));
+  let totalItems = 0, totalValue = 0;
+
+  const list = state.produits.filter(p => !filter || p.codeBarre.toLowerCase().includes(filter) || (p.designation || '').toLowerCase().includes(filter)).sort((a,b) => (a.designation||'').localeCompare(b.designation||''));
 
   tbody.innerHTML = list.map(p => {
-    const alert = p.qte <= p.seuil;
-    return `<tr class="${alert ? 'row-alert' : ''}">
-      <td>${escapeHtml(p.designation || '(sans nom)')}<br><span class="muted">${escapeHtml(p.codeBarre)}</span></td>
-      <td>${p.qte}</td>
-      <td>${p.seuil}</td>
-      <td>${p.prixAchat.toFixed(2)} €</td>
-      <td><button class="btn-small" onclick="openModalAjust('${p.codeBarre}')">Ajuster</button></td>
+    const v = p.qte * p.prixAchat;
+    totalItems += p.qte; totalValue += v;
+    return `<tr class="${p.qte <= p.seuil ? 'row-alert' : ''}">
+      <td>${escapeHtml(p.designation)}<br><span class="muted">${escapeHtml(p.codeBarre)}</span></td>
+      <td>${p.qte}<br><span class="muted">${v.toFixed(2)}€</span></td>
+      <td>${p.seuil}</td><td>${p.prixAchat.toFixed(2)}€</td>
+      <td><button class="btn-small btn-ghost" onclick="openModalAjust('${p.codeBarre}')">Ajuster</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" class="muted">Aucun article</td></tr>';
+
+  document.getElementById('tot-qty').textContent = totalItems;
+  document.getElementById('tot-val').textContent = totalValue.toFixed(2) + ' €';
 }
 
+function renderAnalyse() {
+  const tbody = document.getElementById('analyse-body');
+  const weeksCoverage = Number(document.getElementById('analyse-couverture').value) || 2;
+  const limitDate = new Date(); limitDate.setMonth(new Date().getMonth() - 12);
+  
+  const conso = {};
+  state.historique.forEach(h => {
+    if (h.type === 'Sortie' && new Date(h.date) >= limitDate) {
+      conso[h.codeBarre] = (conso[h.codeBarre] || 0) + h.quantite;
+    }
+  });
+
+  const list = state.produits.map(p => {
+    const total12m = conso[p.codeBarre] || 0;
+    const suggSeuil = Math.ceil((total12m / 52) * weeksCoverage);
+    return { ...p, total12m, avgWeek: total12m / 52, suggSeuil };
+  }).filter(p => p.total12m > 0).sort((a,b) => b.total12m - a.total12m);
+
+  tbody.innerHTML = list.map(p => `<tr>
+      <td>${escapeHtml(p.designation)}</td>
+      <td>${p.total12m}</td>
+      <td>${p.avgWeek.toFixed(1)}</td>
+      <td>
+        <span style="color:#8e8e93; font-size:11px;">Actuel: ${p.seuil}</span><br>
+        <strong>Suggéré: ${p.suggSeuil}</strong>
+      </td>
+      <td><button class="btn-small ${p.seuil < p.suggSeuil ? 'btn-green' : 'btn-ghost'}" onclick="applySeuil('${p.codeBarre}', ${p.suggSeuil})">Appliquer</button></td>
+    </tr>`).join('') || '<tr><td colspan="5" class="muted">Aucune sortie sur 12 mois</td></tr>';
+
+  renderChart(list.slice(0, 5));
+}
+
+function renderChart(topList) {
+  const wrap = document.getElementById('conso-chart-wrap');
+  if (topList.length === 0) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  document.getElementById('conso-chart-title').textContent = "Top 5 Consommation (12 derniers mois)";
+  if (consoChartInstance) consoChartInstance.destroy();
+  consoChartInstance = new Chart(document.getElementById('conso-chart'), {
+    type: 'bar',
+    data: {
+      labels: topList.map(p => (p.designation || p.codeBarre).substring(0,10)),
+      datasets: [{ label: 'Unités sorties', data: topList.map(p => p.total12m), backgroundColor: '#5856d6', borderRadius: 4 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+// ================== FONCTIONS CORRIGEES MANQUANTES ==================
+async function envoyerCommande() {
+  if (panier.length === 0) { toast("Le panier est vide"); return; }
+  const c = state.config || {};
+  if (!c.fournisseurEmail) { toast("Email du fournisseur non configuré !"); return; }
+  setGlobalLoading(true);
+  document.getElementById('send-btn').disabled = true;
+  try {
+    const res = await apiPost('sendOrder', { panier, config: c });
+    if (res.error) throw new Error(res.error);
+    toast('Commande envoyée avec succès ✔');
+    panier = []; renderPanier();
+  } catch (e) { toast('Erreur : ' + e.message); } 
+  finally { setGlobalLoading(false); document.getElementById('send-btn').disabled = false; }
+}
+
+async function submitAjust() {
+  const code = document.getElementById('modal-ajust').dataset.code;
+  const qte = Number(document.getElementById('adj-qty').value);
+  const prix = Number(document.getElementById('adj-prix').value);
+  const seuil = Number(document.getElementById('adj-seuil').value);
+  const commentaire = document.getElementById('adj-comment').value.trim();
+  closeModal('modal-ajust');
+  setGlobalLoading(true);
+  try {
+    const res = await apiPost('adjustProduct', { codeBarre: code, qte, prixAchat: prix, seuil, commentaire });
+    if (res.error) throw new Error(res.error);
+    toast('Article ajusté ✔'); await loadData();
+  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
+}
+
+async function submitReglages() {
+  const cfg = {
+    nom: document.getElementById('cfg-nom').value, representant: document.getElementById('cfg-representant').value,
+    siret: document.getElementById('cfg-siret').value, adresse: document.getElementById('cfg-adresse').value,
+    mail: document.getElementById('cfg-mail').value, tel: document.getElementById('cfg-tel').value,
+    fournisseurNom: document.getElementById('cfg-frs-nom').value, fournisseurEmail: document.getElementById('cfg-frs-mail').value
+  };
+  closeModal('modal-reglages');
+  setGlobalLoading(true);
+  try {
+    const res = await apiPost('saveConfig', cfg);
+    if (res.error) throw new Error(res.error);
+    toast('Réglages sauvegardés ✔'); await loadData();
+  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
+}
+
+async function applySeuil(code, seuil) {
+  setGlobalLoading(true);
+  try {
+    const res = await apiPost('updateSeuil', { codeBarre: code, seuil });
+    if (res.error) throw new Error(res.error);
+    toast('Seuil mis à jour ✔'); await loadData();
+  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
+}
+
+// ================== UTILITAIRES / DIVERS ==================
 function renderHistorique(mode) {
   const type = mode === 'entree' ? 'Entrée' : 'Sortie';
   const list = state.historique.filter(h => h.type === type).slice(0, 50);
-  const tbody = document.getElementById(mode + '-histo-body');
-  tbody.innerHTML = list.map(h => `<tr>
-      <td>${formatDate(h.date)}</td>
-      <td>${escapeHtml(h.designation || h.codeBarre)}</td>
-      <td>${h.quantite}</td>
-      <td>${h.qteApres}</td>
+  document.getElementById(mode + '-histo-body').innerHTML = list.map(h => `<tr>
+      <td>${formatDate(h.date)}</td><td>${escapeHtml(h.designation)}</td>
+      <td>${h.quantite}</td><td>${h.qteApres}</td>
       <td><button class="btn-small btn-red" onclick="deleteHistoriqueRow('${h.id}')">✕</button></td>
     </tr>`).join('') || '<tr><td colspan="5" class="muted">Aucun mouvement</td></tr>';
 }
 
 async function deleteHistoriqueRow(id) {
-  if (!confirm('Supprimer cette ligne et ajuster le stock en conséquence ?')) return;
+  if (!confirm('Supprimer cette ligne et ajuster le stock ?')) return;
   setGlobalLoading(true);
   try {
     const res = await apiPost('deleteHistorique', { id });
-    if (res.error) { toast('Erreur : ' + res.error); return; }
-    toast('Ligne supprimée, stock ajusté ✔');
-    await loadData();
-  } catch (err) {
-    toast('Erreur réseau : ' + err.message);
-  } finally {
-    setGlobalLoading(false);
-  }
+    if (res.error) throw new Error(res.error);
+    toast('Ligne supprimée ✔'); await loadData();
+  } catch (err) { toast('Erreur: ' + err.message); } finally { setGlobalLoading(false); }
 }
 
 function renderSuggestions() {
   const tbody = document.getElementById('suggestions-body');
   const list = state.produits.filter(p => p.qte <= p.seuil);
-  tbody.innerHTML = list.map(p => {
-    const sugg = Math.max(p.seuil - p.qte, 1);
-    return `<tr>
-      <td>${escapeHtml(p.designation || p.codeBarre)}<br><span class="muted">${p.qte}/${p.seuil}</span></td>
-      <td><input type="number" min="1" value="${sugg}" id="sugg-qty-${p.codeBarre}" class="qty-input"></td>
+  tbody.innerHTML = list.map(p => `<tr>
+      <td>${escapeHtml(p.designation)}<br><span class="muted">${p.qte}/${p.seuil}</span></td>
+      <td><input type="number" min="1" value="${Math.max(p.seuil - p.qte, 1)}" id="sugg-qty-${p.codeBarre}" class="qty-input"></td>
       <td><button class="btn-small btn-green" onclick="addToPanier('${p.codeBarre}')">Ajouter</button></td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="3" class="muted">Aucun article sous le seuil 🎉</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="3" class="muted">Aucun article sous le seuil 🎉</td></tr>';
 }
 
 function renderManualSelect() {
-  const sel = document.getElementById('manual-select');
-  const list = [...state.produits].sort((a, b) => (a.designation || '').localeCompare(b.designation || ''));
-  sel.innerHTML = '<option value="">-- choisir un article --</option>' +
-    list.map(p => `<option value="${p.codeBarre}">${escapeHtml(p.designation || p.codeBarre)} (${p.codeBarre})</option>`).join('');
+  document.getElementById('manual-select').innerHTML = '<option value="">-- choisir un article --</option>' + state.produits.sort((a,b) => (a.designation||'').localeCompare(b.designation||'')).map(p => `<option value="${p.codeBarre}">${escapeHtml(p.designation)} (${p.codeBarre})</option>`).join('');
 }
 
 function renderConfigForm() {
-  const c = (state && state.config) ? state.config : {};
-  const setVal = (id, val) => {
-    const el = document.getElementById(id);
-    if (el) el.value = val || '';
-  };
-
-  setVal('cfg-nom', c.nom);
-  setVal('cfg-representant', c.representant);
-  setVal('cfg-siret', c.siret);
-  setVal('cfg-adresse', c.adresse);
-  setVal('cfg-mail', c.mail);
-  setVal('cfg-tel', c.tel);
-  setVal('cfg-frs-nom', c.fournisseurNom);
-  setVal('cfg-frs-mail', c.fournisseurEmail);
-
+  const c = state.config || {};
+  const setVal = (id, val) => { const e = document.getElementById(id); if(e) e.value = val || ''; };
+  setVal('cfg-nom', c.nom); setVal('cfg-representant', c.representant); setVal('cfg-siret', c.siret);
+  setVal('cfg-adresse', c.adresse); setVal('cfg-mail', c.mail); setVal('cfg-tel', c.tel);
+  setVal('cfg-frs-nom', c.fournisseurNom); setVal('cfg-frs-mail', c.fournisseurEmail);
   const frsDisplay = document.getElementById('frs-display');
-  if (frsDisplay) {
-    frsDisplay.textContent = c.fournisseurNom
-      ? c.fournisseurNom + ' (' + (c.fournisseurEmail || '—') + ')'
-      : 'non configuré';
-  }
+  if (frsDisplay) frsDisplay.textContent = c.fournisseurNom ? c.fournisseurNom + ' (' + (c.fournisseurEmail||'—') + ')' : 'non configuré';
 }
 
 function renderPanier() {
-  const tbody = document.getElementById('panier-body');
   let total = 0;
-  tbody.innerHTML = panier.map((a, i) => {
-    const t = a.qte * a.prixAchat;
-    total += t;
-    return `<tr>
-      <td>${escapeHtml(a.designation || a.codeBarre)}</td>
-      <td><input type="number" min="1" value="${a.qte}" class="qty-input" onchange="updatePanierQty(${i}, this.value)"></td>
-      <td>${t.toFixed(2)} €</td>
-      <td><button class="btn-small btn-red" onclick="removeFromPanier(${i})">✕</button></td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="4" class="muted">Panier empty</td></tr>';
+  document.getElementById('panier-body').innerHTML = panier.map((a, i) => {
+    const t = a.qte * a.prixAchat; total += t;
+    return `<tr><td>${escapeHtml(a.designation)}</td><td><input type="number" min="1" value="${a.qte}" class="qty-input" onchange="updatePanierQty(${i}, this.value)"></td><td>${t.toFixed(2)}€</td><td><button class="btn-small btn-red" onclick="removeFromPanier(${i})">✕</button></td></tr>`;
+  }).join('') || '<tr><td colspan="4" class="muted">Panier vide</td></tr>';
   document.getElementById('panier-total').textContent = total.toFixed(2) + ' €';
 }
 
-// ================== ACTIONS PANIER ==================
 function addToPanier(code) {
-  const p = findProduit(code);
-  if (!p) return;
-  const input = document.getElementById('sugg-qty-' + code);
-  const qty = Number(input.value) || 1;
+  const p = state.produits.find(x => x.codeBarre === code); if (!p) return;
+  const qty = Number(document.getElementById('sugg-qty-' + code).value) || 1;
   const existing = panier.find(x => x.codeBarre === code);
-  if (existing) existing.qte += qty;
-  else panier.push({ codeBarre: p.codeBarre, designation: p.designation, qte: qty, prixAchat: p.prixAchat });
-  renderPanier();
-  toast('Ajouté au panier');
+  if (existing) existing.qte += qty; else panier.push({ codeBarre: p.codeBarre, designation: p.designation, qte: qty, prixAchat: p.prixAchat });
+  renderPanier(); toast('Ajouté au panier');
 }
 
 function addManualToPanier() {
-  const code = document.getElementById('manual-select').value;
-  if (!code) { toast('Choisissez un article'); return; }
+  const code = document.getElementById('manual-select').value; if (!code) { toast('Choisissez un article'); return; }
   const qty = Number(document.getElementById('manual-qty').value) || 1;
-  const p = findProduit(code);
+  const p = state.produits.find(x => x.codeBarre === code);
   const existing = panier.find(x => x.codeBarre === code);
-  if (existing) existing.qte += qty;
-  else panier.push({ codeBarre: p.codeBarre, designation: p.designation, qte: qty, prixAchat: p.prixAchat });
-  renderPanier();
-  toast('Ajouté au panier');
+  if (existing) existing.qte += qty; else panier.push({ codeBarre: p.codeBarre, designation: p.designation, qte: qty, prixAchat: p.prixAchat });
+  renderPanier(); toast('Ajouté au panier');
 }
 
-function updatePanierQty(i, val) {
-  panier[i].qte = Math.max(Number(val) || 1, 1);
-  renderPanier();
-}
-function removeFromPanier(i) {
-  panier.splice(i, 1);
-  renderPanier();
-}
+function updatePanierQty(i, val) { panier[i].qte = Math.max(Number(val) || 1, 1); renderPanier(); }
+function removeFromPanier(i) { panier.splice(i, 1); renderPanier(); }
 
-// ================== MODALES ==================
 function showModal(id) { document.getElementById(id).classList.add('show'); }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
-
 function openModalNouveau(code) {
   document.getElementById('new-code').value = code || '';
-  document.getElementById('new-designation').value = '';
-  document.getElementById('new-qte').value = 0;
-  document.getElementById('new-prix').value = 0;
-  document.getElementById('new-contenance').value = '';
-  document.getElementById('new-seuil').value = 0;
+  ['designation','qte','prix','contenance','seuil'].forEach(id => document.getElementById('new-'+id).value = (id==='qte'||id==='prix'||id==='seuil')?0:'');
   showModal('modal-nouveau');
 }
 
 async function submitNouveau() {
-  const codeBarre = document.getElementById('new-code').value.trim();
-  if (!codeBarre) { toast('Code barre requis'); return; }
-  if (findProduit(codeBarre)) { toast('Ce code existe déjà'); return; }
-  const designation = document.getElementById('new-designation').value.trim();
-  if (!designation) { toast('Désignation requise'); return; }
-  const data = {
-    codeBarre,
-    designation,
-    qte: Number(document.getElementById('new-qte').value) || 0,
-    prixAchat: Number(document.getElementById('new-prix').value) || 0,
-    contenance: document.getElementById('new-contenance').value.trim(),
-    seuil: Number(document.getElementById('new-seuil').value) || 0
-  };
-  closeModal('modal-nouveau');
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('upsertProduct', data);
-    if (res.error) { toast('Erreur : ' + res.error); return; }
-    toast('Article créé ✔');
-    await loadData();
-  } catch (err) {
-    toast('Erreur réseau : ' + err.message);
-  } finally {
-    setGlobalLoading(false);
-  }
+  const codeBarre = document.getElementById('new-code').value.trim(); if (!codeBarre) { toast('Code requis'); return; }
+  if (state.produits.find(x => x.codeBarre === codeBarre)) { toast('Code déjà existant'); return; }
+  const designation = document.getElementById('new-designation').value.trim(); if (!designation) { toast('Désignation requise'); return; }
+  const data = { codeBarre, designation, qte: Number(document.getElementById('new-qte').value)||0, prixAchat: Number(document.getElementById('new-prix').value)||0, contenance: document.getElementById('new-contenance').value.trim(), seuil: Number(document.getElementById('new-seuil').value)||0 };
+  closeModal('modal-nouveau'); setGlobalLoading(true);
+  try { const res = await apiPost('upsertProduct', data); if (res.error) throw new Error(res.error); toast('Article créé ✔'); await loadData(); }
+  catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
 }
 
 function openModalAjust(code) {
-  const p = findProduit(code);
-  if (!p) return;
+  const p = state.produits.find(x => x.codeBarre === code); if (!p) return;
   document.getElementById('modal-ajust').dataset.code = code;
   document.getElementById('adj-info').textContent = (p.designation || code);
-  document.getElementById('adj-qty').value = p.qte;
-  document.getElementById('adj-prix').value = p.prixAchat !== undefined ? p.prixAchat : 0;
-  document.getElementById('adj-seuil').value = p.seuil !== undefined ? p.seuil : 0;
-  document.getElementById('adj-comment').value = '';
+  document.getElementById('adj-qty').value = p.qte; document.getElementById('adj-prix').value = p.prixAchat || 0;
+  document.getElementById('adj-seuil').value = p.seuil || 0; document.getElementById('adj-comment').value = '';
   showModal('modal-ajust');
 }
 
-// Fonctions utilitaires diverses
-function toast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
-}
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
+function setGlobalLoading(show) { document.getElementById('loading-bar').classList.toggle('show', show); }
+function escapeHtml(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function formatDate(dateStr) { if (!dateStr) return ''; const d = new Date(dateStr); return isNaN(d) ? dateStr : d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
 
-function setGlobalLoading(show) {
-  const bar = document.getElementById('loading-bar');
-  if (show) bar.classList.add('show');
-  else bar.classList.remove('show');
-}
-
-function escapeHtml(str) {
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  if (isNaN(d)) return dateStr;
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
-
-// Initialisation au chargement de la page
-window.addEventListener('DOMContentLoaded', () => {
-  setupReader();
-  loadData();
-  switchMode('sortie');
-});
+window.addEventListener('DOMContentLoaded', () => { setupReader(); loadData(); switchMode('sortie'); });
 </script>
 </body>
 </html>
