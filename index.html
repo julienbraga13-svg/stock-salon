@@ -210,17 +210,29 @@
   </div>
 
   <!-- Vue Réception -->
+<!-- Vue Réception -->
   <div class="view" id="view-reception">
     <div class="stock-container">
       <h2>Réception de commande</h2>
       <p class="muted" style="margin-top:0;">Cliquez sur une commande ci-dessous pour lancer la réception par scan :</p>
       
-      <!-- Liste des commandes les unes sous les autres -->
+      <!-- Liste des commandes -->
       <div id="commandes-cards-container" style="margin-bottom: 10px; max-height: 140px; overflow-y: auto;"></div>
 
       <div id="reception-details" style="display:none; flex-direction: column; flex-grow: 1; min-height: 0; border-top: 1px solid #e5e5ea; padding-top: 8px;">
         <p style="margin:0 0 4px 0;"><strong>Commande active :</strong> <span id="rec-id-cmd"></span> (<span id="rec-frs"></span>)</p>
-        <p class="muted" style="margin:0 0 6px 0;">Scannez les articles pour valider leur réception un par un.</p>
+        <p class="muted" style="margin:0 0 6px 0;">Scannez un article ou saisissez sa quantité reçue :</p>
+        
+        <!-- Contrôle de quantité pour le dernier article scanné -->
+        <div id="reception-active-item-bar" style="background: #f3e8ff; border: 1px solid #af52de; border-radius: 8px; padding: 8px; margin-bottom: 8px; display: none;">
+          <div style="font-size: 12px; font-weight: 700; color: #af52de; margin-bottom: 4px;" id="rec-active-name">Aucun article sélectionné</div>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <label style="margin:0; font-size:11px;">Qté à réceptionner :</label>
+            <input type="number" id="rec-manual-qty" min="1" value="1" style="width: 80px;">
+            <button class="btn-small" style="background:#af52de; color:#fff;" onclick="validerQuantiteReception()">Valider la quantité</button>
+          </div>
+        </div>
+
         <div class="table-scroll">
           <table>
             <thead><tr><th>Article</th><th>Attendu</th><th>Reçu</th><th>Statut</th></tr></thead>
@@ -316,12 +328,17 @@
 
 <div class="modal-overlay" id="modal-reglages">
   <div class="modal-card">
-    <h3>Réglages commande</h3>
+    <h3>Réglages fournisseurs & commande</h3>
     <fieldset>
-      <legend>Fournisseur destinataire</legend>
-      <label>Nom</label><input type="text" id="cfg-frs-nom">
+      <legend>Gestion des Fournisseurs</legend>
+      <label>Choisir un fournisseur</label>
+      <select id="cfg-select-frs" onchange="chargerFournisseurSelectionne()">
+        <option value="">-- Nouveau fournisseur --</option>
+      </select>
+      <label style="margin-top:6px;">Nom du fournisseur</label><input type="text" id="cfg-frs-nom">
       <label>Email</label><input type="text" id="cfg-frs-mail">
       <label>Franco de port (€ TTC)</label><input type="number" id="cfg-frs-franco" min="0" step="0.01">
+      <button class="btn-small btn-red" style="margin-top:6px;" onclick="supprimerFournisseurActuel()">Supprimer ce fournisseur</button>
     </fieldset>
     <fieldset>
       <legend>Mes coordonnées (entête)</legend>
@@ -431,6 +448,8 @@ function playBeep() { try { const a = new (window.AudioContext || window.webkitA
 function triggerFlash() { const o = document.getElementById('flash-overlay'); o.classList.add('flash-active'); setTimeout(() => o.classList.remove('flash-active'), 100); }
 
 // ================== ROUTAGE & API ==================
+let dernierArticleScanneCode = null;
+
 async function handleScannedCode(code) {
   if (!dataLoaded) { toast('Chargement en cours...'); return; }
   
@@ -438,27 +457,68 @@ async function handleScannedCode(code) {
   if (currentMode === 'reception') {
     if (!commandeEnCoursSelectionnee) { toast("Veuillez d'abord sélectionner une commande ci-dessus !"); return; }
     
-    setGlobalLoading(true);
-    try {
-      const res = await apiPost('receptionnerArticleCmd', { idCommande: commandeEnCoursSelectionnee.id, codeBarre: code });
-      if (res.error) { toast('Erreur : ' + res.error); return; }
-      
-      toast('Article réceptionné ✔');
-      commandeEnCoursSelectionnee.contenu = res.contenu;
-      renderReceptionTable();
-      
-      if (res.toutRecu) {
-        toast('🎉 Commande entièrement réceptionnée !');
-        setTimeout(() => {
-          loadData();
-          commandeEnCoursSelectionnee = null;
-          renderCommandesReceptionList();
-        }, 1500);
-      }
-    } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
+    // Vérifier si l'article fait partie de la commande active
+    const itemTrouve = commandeEnCoursSelectionnee.contenu.find(i => String(i.codeBarre) === String(code));
+    if (!itemTrouve) {
+      toast("Cet article ne fait pas partie de cette commande.");
+      return;
+    }
+
+    dernierArticleScanneCode = code;
+    document.getElementById('reception-active-item-bar').style.display = 'block';
+    document.getElementById('rec-active-name').textContent = itemTrouve.designation + ' (Code: ' + code + ')';
+    document.getElementById('rec-manual-qty').value = 1;
+    toast('Article reconnu, saisissez la quantité reçue');
     return;
   }
 
+  // GESTIONS MODES ENTREE / SORTIE (Code d'origine)
+  const p = state.produits.find(x => x.codeBarre === String(code));
+  if (currentMode === 'sortie' && !p) { toast("Article inconnu. Créez-le en mode Entrée."); return; }
+  if (!p) { openModalNouveau(code); return; }
+
+  const type = currentMode === 'entree' ? 'Entrée' : 'Sortie';
+  if (type === 'Sortie' && p.qte <= 0) if (!confirm('Stock à 0. Continuer ?')) return;
+
+  setGlobalLoading(true);
+  try {
+    const res = await apiPost('movement', { codeBarre: code, type, quantite: 1, commentaire: '' });
+    if (res.error) { toast('Erreur : ' + res.error); return; }
+    toast((type === 'Entrée' ? '+1 ' : '-1 ') + (p.designation || code) + ' → ' + res.newQte);
+    await loadData();
+  } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
+}
+async function validerQuantiteReception() {
+  if (!commandeEnCoursSelectionnee || !dernierArticleScanneCode) return;
+  const qteSaisie = Number(document.getElementById('rec-manual-qty').value) || 1;
+
+  setGlobalLoading(true);
+  try {
+    const res = await apiPost('receptionnerArticleCmd', { 
+      idCommande: commandeEnCoursSelectionnee.id, 
+      codeBarre: dernierArticleScanneCode,
+      quantite: qteSaisie 
+    });
+    if (res.error) { toast('Erreur : ' + res.error); return; }
+    
+    toast('Réception enregistrée ✔');
+    commandeEnCoursSelectionnee.contenu = res.contenu;
+    renderReceptionTable();
+    
+    // Masquer la barre de saisie rapide après validation
+    document.getElementById('reception-active-item-bar').style.display = 'none';
+    dernierArticleScanneCode = null;
+
+    if (res.toutRecu) {
+      toast('🎉 Commande entièrement réceptionnée !');
+      setTimeout(() => {
+        loadData();
+        commandeEnCoursSelectionnee = null;
+        renderCommandesReceptionList();
+      }, 1500);
+    }
+  } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
+}
   // GESTIONS MODES ENTREE / SORTIE
   const p = state.produits.find(x => x.codeBarre === String(code));
   if (currentMode === 'sortie' && !p) { toast("Article inconnu. Créez-le en mode Entrée."); return; }
@@ -846,11 +906,41 @@ function renderConfigForm() {
   const setVal = (id, val) => { const e = document.getElementById(id); if(e) e.value = val || ''; };
   setVal('cfg-nom', c.nom); setVal('cfg-representant', c.representant); setVal('cfg-siret', c.siret);
   setVal('cfg-adresse', c.adresse); setVal('cfg-mail', c.mail); setVal('cfg-tel', c.tel);
-  setVal('cfg-frs-nom', c.fournisseurNom); setVal('cfg-frs-mail', c.fournisseurEmail);
+
+  // Alimenter le menu déroulant des fournisseurs enregistrés
+  const selectFrs = document.getElementById('cfg-select-frs');
+  if (selectFrs && c.fournisseurs) {
+    let list = [];
+    try { list = JSON.parse(c.fournisseurs); } catch(e){}
+    selectFrs.innerHTML = '<option value="">-- Nouveau fournisseur --</option>' + 
+      list.map((f, idx) => `<option value="${idx}">${f.nom} (${f.email || 'Pas d\'email'})</option>`).join('');
+  }
+
+  setVal('cfg-frs-nom', c.fournisseurNom); 
+  setVal('cfg-frs-mail', c.fournisseurEmail);
   setVal('cfg-frs-franco', c.fournisseurFranco);
   
   const frsDisplay = document.getElementById('frs-display');
   if (frsDisplay) frsDisplay.textContent = c.fournisseurNom ? c.fournisseurNom + ' (' + (c.fournisseurEmail||'—') + ')' : 'non configuré';
+}
+
+function chargerFournisseurSelectionne() {
+  const idx = document.getElementById('cfg-select-frs').value;
+  if (idx === "") {
+    document.getElementById('cfg-frs-nom').value = '';
+    document.getElementById('cfg-frs-mail').value = '';
+    document.getElementById('cfg-frs-franco').value = '';
+    return;
+  }
+  try {
+    let list = JSON.parse(state.config.fournisseurs || '[]');
+    const f = list[idx];
+    if (f) {
+      document.getElementById('cfg-frs-nom').value = f.nom || '';
+      document.getElementById('cfg-frs-mail').value = f.email || '';
+      document.getElementById('cfg-frs-franco').value = f.franco || '';
+    }
+  } catch(e){}
 }
 
 function renderPanier() {
