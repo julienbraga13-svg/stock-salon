@@ -67,6 +67,21 @@
     width: 100%; height: 22vh; border-radius: 12px; overflow: hidden;
     background-color: #000; margin-bottom: 6px; position: relative;
   }
+ /* ===== Effet Flash Vidéo ===== */
+  #video-flash {
+    position: absolute;
+    inset: 0;
+    background-color: transparent;
+    pointer-events: none; /* Pour ne pas bloquer les clics */
+    z-index: 10;
+  }
+  @keyframes flashAnim {
+    0% { background-color: rgba(255, 255, 255, 0.9); }
+    100% { background-color: transparent; }
+  }
+  .flash-active {
+    animation: flashAnim 0.4s ease-out;
+  }
   video { width: 100%; height: 100%; display: block; object-fit: cover; }
   .scan-guide {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -180,6 +195,7 @@
     <div id="video-container">
       <video id="video" playsinline autoplay muted></video>
       <div class="scan-guide" id="scan-guide"></div>
+      <div id="video-flash"></div> 
     </div>
     <div id="flash-msg"></div>
     <div class="manual-row">
@@ -404,7 +420,8 @@ let candidateCode = null;
 let candidateCount = 0;
 let lastValidatedCode = null;
 let lastValidatedTime = 0;
-let selectedDeviceId = null;
+// Récupérer la dernière caméra sauvegardée, sinon null
+let selectedDeviceId = localStorage.getItem('preferredCamera') || null;
 const flashMsg = document.getElementById('flash-msg');
 
 // Fonction pour jouer un bip sonore clair lors de la détection
@@ -425,7 +442,14 @@ function playBeepSound() {
     console.warn('Bip audio non pris en charge :', e);
   }
 }
-
+function triggerVideoFlash() {
+  const flashEl = document.getElementById('video-flash');
+  if (flashEl) {
+    flashEl.classList.remove('flash-active');
+    void flashEl.offsetWidth; // Petite astuce pour forcer le navigateur à relancer l'animation
+    flashEl.classList.add('flash-active');
+  }
+}
 function setupReader() {
   const hints = new Map();
   const formats = [
@@ -461,6 +485,8 @@ async function updateCameraList() {
 
 function switchCamera(deviceId) {
   selectedDeviceId = deviceId;
+  // Sauvegarde le choix dans la mémoire du téléphone
+  localStorage.setItem('preferredCamera', deviceId);
   stopScanner();
   startScanner();
 }
@@ -501,7 +527,7 @@ function startScanner() {
         lastValidatedTime = currentTime;
         candidateCode = null;
         candidateCount = 0;
-
+        triggerVideoFlash();
         playBeepSound(); // Jouer le bip sonore
         if (navigator.vibrate) navigator.vibrate(100);
         flashMsg.textContent = "✔ " + rawCode;
