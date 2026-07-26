@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Douchette iOS - Moteur ZXing</title>
+    <title>Douchette iOS - ZXing Direct</title>
     
-    <!-- Import de la bibliothèque ZXing -->
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     
     <style>
@@ -21,7 +20,6 @@
             text-align: center;
             margin-top: 0;
         }
-        /* Conteneur vidéo */
         #video-container {
             width: 100%;
             border-radius: 12px;
@@ -30,13 +28,11 @@
             margin-bottom: 20px;
             position: relative;
         }
-        /* La vidéo prend 100% du conteneur */
         video {
             width: 100%;
             display: block;
             object-fit: cover;
         }
-        /* Guide visuel (uniquement esthétique, n'entrave pas le scan logiciel) */
         .scan-guide {
             position: absolute;
             top: 50%;
@@ -46,8 +42,8 @@
             height: 100px;
             border: 2px solid #34c759;
             border-radius: 8px;
-            box-shadow: 0 0 0 4000px rgba(0,0,0,0.5); /* Assombrit tout autour */
-            pointer-events: none; /* Laisse passer les clics */
+            box-shadow: 0 0 0 4000px rgba(0,0,0,0.5);
+            pointer-events: none;
         }
         .btn {
             display: block;
@@ -97,13 +93,12 @@
 </head>
 <body>
 
-    <h1>📦 Gestion de Stock (ZXing)</h1>
+    <h1>📦 Gestion de Stock (ZXing Direct)1</h1>
     
     <button id="btn-start" class="btn">Démarrer la douchette</button>
     <button id="btn-stop" class="btn btn-stop">Arrêter la caméra</button>
 
     <div id="video-container">
-        <!-- Les attributs playsinline, autoplay et muted sont OBLIGATOIRES sur iOS pour que la vidéo ne s'ouvre pas en plein écran natif -->
         <video id="video" playsinline autoplay muted></video>
         <div class="scan-guide" id="scan-guide" style="display:none;"></div>
     </div>
@@ -135,64 +130,44 @@
         const scanGuide = document.getElementById('scan-guide');
 
         function initScanner() {
-            // Instanciation du lecteur multiformat ZXing
             codeReader = new ZXing.BrowserMultiFormatReader();
             
-            // On récupère les caméras disponibles
-            codeReader.getVideoInputDevices()
-                .then((videoInputDevices) => {
-                    let selectedDeviceId = null;
+            // On ne cherche plus à lister les périphériques (ce qui bloque sur iOS).
+            // En passant 'undefined' comme premier argument, ZXing demande directement 
+            // les contraintes par défaut à Safari, qui bascule sur la caméra arrière.
+            codeReader.decodeFromVideoDevice(undefined, 'video', (result, err) => {
+                if (result) {
+                    const code = result.getText();
+                    const currentTime = new Date().getTime();
                     
-                    // On tente de forcer la caméra arrière
-                    if (videoInputDevices.length > 0) {
-                        selectedDeviceId = videoInputDevices[0].deviceId;
-                        videoInputDevices.forEach((device) => {
-                            if (device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('arrière')) {
-                                selectedDeviceId = device.deviceId;
-                            }
-                        });
-                    }
-
-                    if (!selectedDeviceId) {
-                        alert("Impossible de détecter une caméra sur cet appareil.");
+                    if (code === lastScannedCode && (currentTime - lastScanTime) < 1500) {
                         return;
                     }
 
-                    // Démarre le scan sur l'élément vidéo HTML que nous avons préparé
-                    codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
-                        if (result) {
-                            const code = result.getText();
-                            const currentTime = new Date().getTime();
-                            
-                            // Anti-rebond (1.5s)
-                            if (code === lastScannedCode && (currentTime - lastScanTime) < 1500) {
-                                return;
-                            }
+                    lastScannedCode = code;
+                    lastScanTime = currentTime;
 
-                            lastScannedCode = code;
-                            lastScanTime = currentTime;
-
-                            ajouterAuStock(code);
-                            
-                            if (navigator.vibrate) {
-                                navigator.vibrate(100);
-                            }
-                        }
-                    });
-
-                    isScanning = true;
-                    btnStart.style.display = 'none';
-                    btnStop.style.display = 'block';
-                    scanGuide.style.display = 'block';
-                })
-                .catch((err) => {
-                    alert("Erreur d'accès à la caméra : " + err);
-                });
+                    ajouterAuStock(code);
+                    
+                    if (navigator.vibrate) {
+                        navigator.vibrate(100);
+                    }
+                }
+            })
+            .then(() => {
+                isScanning = true;
+                btnStart.style.display = 'none';
+                btnStop.style.display = 'block';
+                scanGuide.style.display = 'block';
+            })
+            .catch((err) => {
+                alert("Erreur d'accès à la caméra : " + err);
+            });
         }
 
         function stopScanner() {
             if (codeReader && isScanning) {
-                codeReader.reset(); // Arrête complètement le flux ZXing
+                codeReader.reset();
                 isScanning = false;
                 btnStart.style.display = 'block';
                 btnStop.style.display = 'none';
