@@ -64,6 +64,9 @@
   #stock-search { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #c6c6c8; font-size: 14px; margin-bottom: 8px; }
   .stock-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
   .stock-summary { display: flex; justify-content: space-between; background: #f2f2f7; border: 1px solid #e5e5ea; padding: 8px 10px; border-radius: 8px; font-size: 13px; font-weight: 700; color: #1c1c1e; margin-bottom: 8px; }
+  
+  /* Badge Notification Stock */
+  .badge-commande { background: #fff3cd; color: #856404; font-size: 10px; padding: 2px 6px; border-radius: 6px; border: 1px solid #ffeeba; display: inline-block; margin-top: 2px; font-weight: 600; }
 
   /* Commandes */
   #view-commande .stock-container { overflow-y: auto; }
@@ -78,6 +81,11 @@
   .panier-total-row { display: flex; justify-content: space-between; font-weight: 700; padding: 8px 0; font-size: 14px; }
   .send-row button { width: 100%; padding: 12px; border-radius: 10px; border: none; background: #34c759; color: #fff; font-weight: 700; font-size: 15px; }
   .send-row button:disabled { background: #c6c6c8; }
+
+  /* Réception (Liste cliquable) */
+  .cmd-card-item { background: #f8f9fa; border: 1px solid #dcdce1; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
+  .cmd-card-item:hover { background: #f1f1f5; border-color: #af52de; }
+  .cmd-card-item.selected { background: #f3e8ff; border-color: #af52de; box-shadow: 0 0 0 1px #af52de; }
 
   /* Analyses */
   .analyse-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
@@ -204,18 +212,15 @@
   <!-- Vue Réception -->
   <div class="view" id="view-reception">
     <div class="stock-container">
-      <h2>Réception de commande par scan</h2>
-      <div class="field-row">
-        <div style="flex:2">
-          <label>Sélectionner la commande en cours</label>
-          <select id="select-cmd-reception" onchange="changerCommandeception()">
-            <option value="">-- Choisir une commande --</option>
-          </select>
-        </div>
-      </div>
-      <div id="reception-details" style="display:none; margin-top: 10px; display: flex; flex-direction: column; flex-grow: 1; min-height: 0;">
-        <p><strong>Fournisseur :</strong> <span id="rec-frs"></span></p>
-        <p class="muted">Scannez les articles pour valider leur réception un par un.</p>
+      <h2>Réception de commande</h2>
+      <p class="muted" style="margin-top:0;">Cliquez sur une commande ci-dessous pour lancer la réception par scan :</p>
+      
+      <!-- Liste des commandes les unes sous les autres -->
+      <div id="commandes-cards-container" style="margin-bottom: 10px; max-height: 140px; overflow-y: auto;"></div>
+
+      <div id="reception-details" style="display:none; flex-direction: column; flex-grow: 1; min-height: 0; border-top: 1px solid #e5e5ea; padding-top: 8px;">
+        <p style="margin:0 0 4px 0;"><strong>Commande active :</strong> <span id="rec-id-cmd"></span> (<span id="rec-frs"></span>)</p>
+        <p class="muted" style="margin:0 0 6px 0;">Scannez les articles pour valider leur réception un par un.</p>
         <div class="table-scroll">
           <table>
             <thead><tr><th>Article</th><th>Attendu</th><th>Reçu</th><th>Statut</th></tr></thead>
@@ -431,7 +436,7 @@ async function handleScannedCode(code) {
   
   // GESTION MODE RECEPTION DE COMMANDE
   if (currentMode === 'reception') {
-    if (!commandeEnCoursSelectionnee) { toast("Veuillez d'abord sélectionner une commande !"); return; }
+    if (!commandeEnCoursSelectionnee) { toast("Veuillez d'abord sélectionner une commande ci-dessus !"); return; }
     
     setGlobalLoading(true);
     try {
@@ -446,8 +451,8 @@ async function handleScannedCode(code) {
         toast('🎉 Commande entièrement réceptionnée !');
         setTimeout(() => {
           loadData();
-          document.getElementById('select-cmd-reception').value = '';
-          changerCommandeception();
+          commandeEnCoursSelectionnee = null;
+          renderCommandesReceptionList();
         }, 1500);
       }
     } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
@@ -490,6 +495,17 @@ async function loadData() {
       commandesEnCours: data.commandesEnCours || []
     };
     dataLoaded = true;
+    
+    // Si une commande est en cours de sélection, mettre à jour sa référence locale
+    if (commandeEnCoursSelectionnee) {
+      const updatedCmd = state.commandesEnCours.find(c => c.id === commandeEnCoursSelectionnee.id);
+      if (updatedCmd) {
+        commandeEnCoursSelectionnee = updatedCmd;
+      } else {
+        commandeEnCoursSelectionnee = null;
+      }
+    }
+
     renderAll();
   } catch (err) { toast('Erreur: ' + err.message); } finally { setGlobalLoading(false); }
 }
@@ -525,30 +541,43 @@ function renderAll() {
 
 // ================== VUE RECEPTION ==================
 function renderCommandesReceptionList() {
-  const select = document.getElementById('select-cmd-reception');
+  const container = document.getElementById('commandes-cards-container');
   const cmds = state.commandesEnCours || [];
-  select.innerHTML = '<option value="">-- Choisir une commande --</option>' + 
-    cmds.map(c => `<option value="${c.id}">${c.id} - ${c.fournisseur} (${formatDate(c.date)})</option>`).join('');
-    
+
+  if (cmds.length === 0) {
+    container.innerHTML = '<p class="muted" style="text-align:center; margin:10px 0;">Aucune commande en attente de réception.</p>';
+    document.getElementById('reception-details').style.display = 'none';
+    commandeEnCoursSelectionnee = null;
+    return;
+  }
+
+  container.innerHTML = cmds.map(c => {
+    const isSelected = commandeEnCoursSelectionnee && commandeEnCoursSelectionnee.id === c.id;
+    return `<div class="cmd-card-item ${isSelected ? 'selected' : ''}" onclick="selectionnerCommandeReception('${c.id}')">
+      <div style="display:flex; justify-content:space-between; font-weight:700; font-size:13px;">
+        <span>${c.id}</span>
+        <span style="color:#af52de;">${c.fournisseur}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:#8e8e93; margin-top:2px;">
+        <span>Date : ${formatDate(c.date)}</span>
+        <span>${c.contenu.length} articles</span>
+      </div>
+    </div>`;
+  }).join('');
+
   if (commandeEnCoursSelectionnee) {
-    select.value = commandeEnCoursSelectionnee.id;
+    document.getElementById('reception-details').style.display = 'flex';
+    document.getElementById('rec-id-cmd').textContent = commandeEnCoursSelectionnee.id;
+    document.getElementById('rec-frs').textContent = commandeEnCoursSelectionnee.fournisseur;
+    renderReceptionTable();
+  } else {
+    document.getElementById('reception-details').style.display = 'none';
   }
 }
 
-function changerCommandeception() {
-  const id = document.getElementById('select-cmd-reception').value;
-  const detailsDiv = document.getElementById('reception-details');
-  if (!id) {
-    commandeEnCoursSelectionnee = null;
-    detailsDiv.style.display = 'none';
-    return;
-  }
+function selectionnerCommandeReception(id) {
   commandeEnCoursSelectionnee = state.commandesEnCours.find(c => c.id === id);
-  if (commandeEnCoursSelectionnee) {
-    document.getElementById('rec-frs').textContent = commandeEnCoursSelectionnee.fournisseur;
-    detailsDiv.style.display = 'flex';
-    renderReceptionTable();
-  }
+  renderCommandesReceptionList();
 }
 
 function renderReceptionTable() {
@@ -571,13 +600,28 @@ function renderStock() {
   const filter = document.getElementById('stock-search').value.trim().toLowerCase();
   let totalItems = 0, totalValue = 0;
 
+  // Créer un ensemble des codes-barres actuellement commandés et en attente
+  const codesCommandes = new Set();
+  (state.commandesEnCours || []).forEach(cmd => {
+    (cmd.contenu || []).forEach(item => {
+      if (item.qteRecue < item.qte) {
+        codesCommandes.add(String(item.codeBarre));
+      }
+    });
+  });
+
   const list = state.produits.filter(p => !filter || p.codeBarre.toLowerCase().includes(filter) || (p.designation || '').toLowerCase().includes(filter)).sort((a,b) => (a.designation||'').localeCompare(b.designation||''));
 
   tbody.innerHTML = list.map(p => {
     const v = p.qte * p.prixAchat;
     totalItems += p.qte; totalValue += v;
+    const estcommande = codesCommandes.has(String(p.codeBarre));
+    
     return `<tr class="${p.qte <= p.seuil ? 'row-alert' : ''}">
-      <td>${escapeHtml(p.designation)}<br><span class="muted">${escapeHtml(p.codeBarre)}</span></td>
+      <td>
+        ${escapeHtml(p.designation)}<br><span class="muted">${escapeHtml(p.codeBarre)}</span>
+        ${estcommande ? '<br><span class="badge-commande">📦 Commandé (en attente)</span>' : ''}
+      </td>
       <td>${p.qte}<br><span class="muted">${v.toFixed(2)}€ TTC</span></td>
       <td>${p.seuil}</td><td>${p.prixAchat.toFixed(2)}€ TTC</td>
       <td><button class="btn-small btn-ghost" onclick="openModalAjust('${p.codeBarre}')">Ajuster</button></td>
@@ -772,12 +816,25 @@ async function deleteHistoriqueRow(id) {
 
 function renderSuggestions() {
   const tbody = document.getElementById('suggestions-body');
-  const list = state.produits.filter(p => p.qte <= p.seuil);
+  
+  // Récupérer la liste de tous les codes-barres ayant déjà une commande en cours non soldée
+  const codesCommandes = new Set();
+  (state.commandesEnCours || []).forEach(cmd => {
+    (cmd.contenu || []).forEach(item => {
+      if (item.qteRecue < item.qte) {
+        codesCommandes.add(String(item.codeBarre));
+      }
+    });
+  });
+
+  // Filtrer les articles sous le seuil ET qui ne sont PAS déjà commandés
+  const list = state.produits.filter(p => p.qte <= p.seuil && !codesCommandes.has(String(p.codeBarre)));
+  
   tbody.innerHTML = list.map(p => `<tr>
       <td>${escapeHtml(p.designation)}<br><span class="muted">${p.qte}/${p.seuil}</span></td>
       <td><input type="number" min="1" value="${Math.max(p.seuil - p.qte, 1)}" id="sugg-qty-${p.codeBarre}" class="qty-input"></td>
       <td><button class="btn-small btn-green" onclick="addToPanier('${p.codeBarre}')">Ajouter</button></td>
-    </tr>`).join('') || '<tr><td colspan="3" class="muted">Aucun article sous le seuil 🎉</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="3" class="muted">Aucune suggestion disponible 🎉</td></tr>';
 }
 
 function renderManualSelect() {
