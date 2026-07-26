@@ -394,6 +394,7 @@ let currentMode = 'entree';
 let dataLoaded = false;
 let consoChartInstance = null;
 let commandeEnCoursSelectionnee = null;
+let refreshInterval = null;
 
 // ================== SCANNER & CAMERAS ==================
 let codeReader, scannerRunning = false, candidateCode = null, candidateCount = 0;
@@ -506,12 +507,11 @@ async function handleScannedCode(code) {
     const res = await apiPost('movement', { codeBarre: code, type, quantite: 1, commentaire: '' });
     if (res.error) { toast('Erreur : ' + res.error); return; }
     
-    // MISE A JOUR LOCALE IMMEDIATE (Évite le rechargement global lourd)
     p.qte = res.newQte;
     toast((type === 'Entrée' ? '+1 ' : '-1 ') + (p.designation || code) + ' → ' + res.newQte);
     
-    // Rafraîchissement léger des vues actives sans couper le scanner
-    if (currentMode === 'stock') renderStock();
+    // Rafraîchissement immédiat des données globales après un scan/action
+    await loadData(true);
   } catch (err) { 
     toast('Erreur : ' + err.message); 
   } finally { 
@@ -571,6 +571,8 @@ async function validerQuantiteReception() {
         commandeEnCoursSelectionnee = null;
         renderCommandesReceptionList();
       }, 1500);
+    } else {
+      await loadData(true);
     }
   } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
 }
@@ -581,8 +583,8 @@ async function apiPost(action, data) {
   return await res.json();
 }
 
-async function loadData() {
-  setGlobalLoading(true);
+async function loadData(silent = false) {
+  if (!silent) setGlobalLoading(true);
   try {
     const data = await apiGet('getData');
     if (data.error) throw new Error(data.error);
@@ -605,7 +607,19 @@ async function loadData() {
     }
 
     renderAll();
-  } catch (err) { toast('Erreur: ' + err.message); } finally { setGlobalLoading(false); }
+  } catch (err) { 
+    if (!silent) toast('Erreur: ' + err.message); 
+  } finally { 
+    if (!silent) setGlobalLoading(false); 
+  }
+}
+
+// Gestion du rafraîchissement périodique intelligent (toutes les 20s si d'autres personnes scannent en même temps)
+function startAutoRefresh() {
+  if (refreshInterval) clearInterval(refreshInterval);
+  refreshInterval = setInterval(() => {
+    loadData(true); // Chargement silencieux en arrière-plan
+  }, 20000);
 }
 
 // ================== NAVIGATION & MODES ==================
@@ -1120,6 +1134,7 @@ window.addEventListener('DOMContentLoaded', () => {
   setupReader(); 
   loadData(); 
   switchMode('sortie'); 
+  startAutoRefresh(); // Lance le polling intelligent de 20s en cas de scan multi-utilisateurs
 });
 </script>
 </body>
