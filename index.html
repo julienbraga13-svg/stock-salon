@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Douchette iOS - ZXing Direct</title>
+    <title>Douchette iOS - Ultra Stable</title>
     
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     
@@ -89,14 +89,24 @@
             font-size: 14px;
             font-weight: bold;
         }
+        /* Notification visuelle flash lors d'un scan validé */
+        #flash-msg {
+            text-align: center;
+            font-weight: bold;
+            color: #34c759;
+            height: 24px;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
 
-    <h1>📦 Gestion de Stock (ZXing Direct)1</h1>
+    <h1>📦 Douchette iOS Stable</h1>
     
     <button id="btn-start" class="btn">Démarrer la douchette</button>
     <button id="btn-stop" class="btn btn-stop">Arrêter la caméra</button>
+
+    <div id="flash-msg"></div>
 
     <div id="video-container">
         <video id="video" playsinline autoplay muted></video>
@@ -121,36 +131,59 @@
         let codeReader;
         let isScanning = false;
         let stock = {}; 
-        let lastScannedCode = null;
-        let lastScanTime = 0;
+        
+        // Variables pour la double validation anti-erreur
+        let candidateCode = null;
+        let candidateCount = 0;
+        
+        // Anti-rebond global pour éviter de valider 50 fois le même produit si on le laisse sous les yeux
+        let lastValidatedCode = null;
+        let lastValidatedTime = 0;
 
         const btnStart = document.getElementById('btn-start');
         const btnStop = document.getElementById('btn-stop');
         const stockBody = document.getElementById('stock-body');
         const scanGuide = document.getElementById('scan-guide');
+        const flashMsg = document.getElementById('flash-msg');
 
         function initScanner() {
             codeReader = new ZXing.BrowserMultiFormatReader();
             
-            // On ne cherche plus à lister les périphériques (ce qui bloque sur iOS).
-            // En passant 'undefined' comme premier argument, ZXing demande directement 
-            // les contraintes par défaut à Safari, qui bascule sur la caméra arrière.
             codeReader.decodeFromVideoDevice(undefined, 'video', (result, err) => {
                 if (result) {
-                    const code = result.getText();
+                    const rawCode = result.getText().trim();
                     const currentTime = new Date().getTime();
-                    
-                    if (code === lastScannedCode && (currentTime - lastScanTime) < 1500) {
+
+                    // 1. Protection anti-rebond sur un produit déjà validé récemment (2 secondes)
+                    if (rawCode === lastValidatedCode && (currentTime - lastValidatedTime) < 2000) {
                         return;
                     }
 
-                    lastScannedCode = code;
-                    lastScanTime = currentTime;
+                    // 2. Logique de double validation : 
+                    // Il faut que le moteur lise EXACTEMENT le même code 2 fois d'affilée
+                    if (rawCode === candidateCode) {
+                        candidateCount++;
+                    } else {
+                        candidateCode = rawCode;
+                        candidateCount = 1; // Premier aperçu de ce code
+                    }
 
-                    ajouterAuStock(code);
-                    
-                    if (navigator.vibrate) {
-                        navigator.vibrate(100);
+                    // Si le code a été lu 2 fois de suite sans erreur au milieu, on valide !
+                    if (candidateCount >= 2) {
+                        lastValidatedCode = rawCode;
+                        lastValidatedTime = currentTime;
+                        
+                        // Reset des candidats
+                        candidateCode = null;
+                        candidateCount = 0;
+
+                        // Ajout au stock
+                        ajouterAuStock(rawCode);
+
+                        // Feedback haptique et visuel
+                        if (navigator.vibrate) navigator.vibrate(100);
+                        flashMsg.textContent = "✔ Validé : " + rawCode;
+                        setTimeout(() => { flashMsg.textContent = ""; }, 1500);
                     }
                 }
             })
@@ -172,11 +205,11 @@
                 btnStart.style.display = 'block';
                 btnStop.style.display = 'none';
                 scanGuide.style.display = 'none';
+                flashMsg.textContent = "";
             }
         }
 
         function ajouterAuStock(code) {
-            code = code.trim();
             if (stock[code]) {
                 stock[code]++;
             } else {
