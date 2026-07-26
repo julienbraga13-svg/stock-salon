@@ -175,20 +175,7 @@
     </div>
   </div>
 
-  <!-- Vue Entrée -->
-  <div class="view" id="view-entree">
-    <div class="stock-container">
-      <h2>Historique des entrées</h2>
-      <div class="table-scroll">
-        <table>
-          <thead><tr><th>Date</th><th>Article</th><th>Qté</th><th>Stock après</th><th></th></tr></thead>
-          <tbody id="entree-histo-body"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Vue Sortie -->
+   <!-- Vue Sortie -->
   <div class="view" id="view-sortie">
     <div class="stock-container">
       <h2>Historique des sorties</h2>
@@ -286,14 +273,28 @@
   </div>
 
 </div>
-
+ 
+  <!-- Vue Entrée -->
+  <div class="view" id="view-entree">
+    <div class="stock-container">
+      <h2>Historique des entrées</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Date</th><th>Article</th><th>Qté</th><th>Stock après</th><th></th></tr></thead>
+          <tbody id="entree-histo-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+ 
 <!-- Nav bar (bas d'écran) -->
 <div class="nav-bar">
-  <button class="nav-btn" data-mode="entree" onclick="switchMode('entree')"><span class="ic">📥</span>Entrée</button>
+  
   <button class="nav-btn" data-mode="sortie" onclick="switchMode('sortie')"><span class="ic">📤</span>Sortie</button>
   <button class="nav-btn" data-mode="stock" onclick="switchMode('stock')"><span class="ic">📊</span>Stock</button>
   <button class="nav-btn" data-mode="commande" onclick="switchMode('commande')"><span class="ic">🧾</span>Commande</button>
   <button class="nav-btn" data-mode="analyse" onclick="switchMode('analyse')"><span class="ic">📈</span>Analyse</button>
+ <button class="nav-btn" data-mode="entree" onclick="switchMode('entree')"><span class="ic">📥</span>Entrée</button>
 </div>
 
 <!-- Modales -->
