@@ -536,6 +536,8 @@ async function loadData() {
     if (data.error) { showErrorBanner('Erreur script : ' + data.error); return; }
     hideErrorBanner();
     state = data;
+    // Sécurité supplémentaire : si config est absent du serveur
+    if (!state.config) state.config = {}; 
     dataLoaded = true;
     renderAll();
   } catch (err) {
@@ -543,6 +545,7 @@ async function loadData() {
     dataLoaded = false;
     showErrorBanner('Connexion au serveur impossible : ' + err.message);
   }
+}
 }
 
 // ================== NAVIGATION ==================
@@ -810,10 +813,16 @@ async function submitReglages() {
 
 async function envoyerCommande() {
   if (panier.length === 0) { toast('Panier vide'); return; }
-  const c = state.config || {};
-  if (!c.fournisseurEmail) { toast('Email fournisseur non configuré (allez dans réglages)'); return; }
   
-  if (!confirm('Envoyer la commande de ' + panier.length + ' article(s) à ' + c.fournisseurNom + ' ?')) return;
+  // Sécurité : on s'assure que state.config existe
+  const c = state.config || {}; 
+  if (!c.fournisseurEmail) { 
+    toast('Email fournisseur non configuré (allez dans réglages)'); 
+    showModal('modal-reglages'); // Ouvre directement les réglages pour aider l'utilisateur
+    return; 
+  }
+  
+  if (!confirm('Envoyer la commande de ' + panier.length + ' article(s) à ' + (c.fournisseurNom || 'le fournisseur') + ' ?')) return;
 
   setGlobalLoading(true);
   try {
