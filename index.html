@@ -125,18 +125,32 @@
 
         // Initialisation du scanner
         function initScanner() {
-            // L'API a besoin d'une interaction utilisateur pour démarrer sur iOS (clic bouton)
             html5QrCode = new Html5Qrcode("reader");
 
+            // 1. On cible uniquement les codes barres classiques pour accélérer le traitement (on exclut les QR codes)
+            const formats = [
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.EAN_8,
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.UPC_A
+            ];
+
             const config = { 
-                fps: 10, // Images par seconde (10 est un bon équilibre perf/batterie)
-                qrbox: { width: 250, height: 150 }, // Zone de scan rectangulaire
-                aspectRatio: 1.333334 // Ratio classique des caméras iPhone
+                fps: 15, // On augmente légèrement la fréquence pour plus de réactivité
+                qrbox: { width: 250, height: 100 }, // Une zone de scan plus écrasée, idéale pour les codes barres 1D
+                formatsToSupport: formats
             };
 
-            // On demande explicitement la caméra arrière ("environment")
+            // 2. On force l'iPhone à utiliser une haute résolution et on tente de forcer l'autofocus continu
+            const cameraConstraints = {
+                facingMode: "environment",
+                width: { min: 1280, ideal: 1920, max: 2560 }, // Force la HD/Full HD
+                advanced: [{ focusMode: "continuous" }] // Tente de forcer la mise au point de Safari
+            };
+
             html5QrCode.start(
-                { facingMode: "environment" }, 
+                cameraConstraints, 
                 config, 
                 onScanSuccess, 
                 onScanFailure
@@ -147,10 +161,9 @@
                 btnStop.style.display = 'block';
             })
             .catch((err) => {
-                alert("Erreur d'accès à la caméra. Vérifiez les permissions de Safari : " + err);
+                alert("Erreur d'accès à la caméra : " + err);
             });
         }
-
         function stopScanner() {
             if (html5QrCode && isScanning) {
                 html5QrCode.stop().then(() => {
