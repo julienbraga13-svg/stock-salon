@@ -1392,8 +1392,9 @@ function populateFournisseursSelects() {
   
   const newSelect = document.getElementById('new-fournisseur');
   const adjSelect = document.getElementById('adj-fournisseur');
-  if (newSelect) newSelect.innerHTML = options;
-  if (adjSelect) adjSelect.innerHTML = options;
+  // On garde la sélection en cours (sinon le refresh auto en fond l'efface toutes les 20s)
+  if (newSelect) { const prev = newSelect.value; newSelect.innerHTML = options; newSelect.value = prev; }
+  if (adjSelect) { const prev = adjSelect.value; adjSelect.innerHTML = options; adjSelect.value = prev; }
 }
 
 function renderConfigForm() {
@@ -1590,6 +1591,7 @@ function openModalNouveau(code) {
   document.getElementById('new-code').value = code || '';
   ['designation','qte','prix','contenance','seuil'].forEach(id => document.getElementById('new-'+id).value = (id==='qte'||id==='prix'||id==='seuil')?0:'');
   populateFournisseursSelects();
+  document.getElementById('new-fournisseur').value = '';
   showModal('modal-nouveau');
 }
 
