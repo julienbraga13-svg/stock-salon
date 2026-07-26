@@ -2,12 +2,11 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <!-- Empêche le zoom au double-clic sur iOS, crucial pour une appli fluide -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Douchette iOS - Gestion de Stock</title>
+    <title>Douchette iOS - QuaggaJS</title>
     
-    <!-- Import de la bibliothèque de scan (très robuste sur iOS) -->
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- Import de QuaggaJS (Spécialiste des codes-barres 1D) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
     
     <style>
         body {
@@ -22,16 +21,30 @@
             text-align: center;
             margin-top: 0;
         }
-        /* Conteneur de la caméra */
-        #reader {
+        
+        /* Conteneur vidéo Quagga */
+        #interactive {
             width: 100%;
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             background-color: #000;
             margin-bottom: 20px;
+            position: relative;
         }
-        /* Boutons style iOS */
+        
+        /* Force la vidéo générée par Quagga à s'adapter à l'écran */
+        #interactive video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        /* Cache le canvas de dessin de Quagga pour garder une interface propre */
+        #interactive canvas {
+            display: none;
+        }
+
         .btn {
             display: block;
             width: 100%;
@@ -51,7 +64,6 @@
             background-color: #ff3b30;
             display: none;
         }
-        /* Tableau de stock */
         .stock-container {
             background: white;
             border-radius: 12px;
@@ -85,16 +97,14 @@
 </head>
 <body>
 
-    <h1>📦 Gestion de Stock3</h1>
+    <h1>📦 Gestion de Stock (Quagga)</h1>
     
-    <!-- Boutons de contrôle -->
     <button id="btn-start" class="btn">Démarrer la douchette</button>
     <button id="btn-stop" class="btn btn-stop">Arrêter la caméra</button>
 
-    <!-- Zone vidéo (gérée par html5-qrcode) -->
-    <div id="reader"></div>
+    <!-- Zone vidéo pour Quagga -->
+    <div id="interactive" class="viewport"></div>
 
-    <!-- Interface de stock -->
     <div class="stock-container">
         <h2>Inventaire en cours</h2>
         <table id="stock-table">
@@ -105,116 +115,107 @@
                 </tr>
             </thead>
             <tbody id="stock-body">
-                <!-- Les articles scannés apparaîtront ici -->
             </tbody>
         </table>
     </div>
 
     <script>
-        // État de l'application
-        let html5QrCode;
         let isScanning = false;
-        let stock = {}; // Objet pour stocker { "codebarre": quantite }
+        let stock = {}; 
         let lastScannedCode = null;
         let lastScanTime = 0;
 
-        // Éléments du DOM
         const btnStart = document.getElementById('btn-start');
         const btnStop = document.getElementById('btn-stop');
         const stockBody = document.getElementById('stock-body');
 
-        // Initialisation du scanner
         function initScanner() {
-            html5QrCode = new Html5Qrcode("reader");
-
-            // Configuration minimaliste : on retire qrbox et les filtres de format
-            const config = { 
-                fps: 10, 
-                aspectRatio: 1.333334 
-                // Sans qrbox, l'algorithme scanne l'intégralité du flux vidéo
-            };
-
-            html5QrCode.start(
-                { facingMode: "environment" }, 
-                config, 
-                onScanSuccess, 
-                onScanFailure
-            )
-            .then(() => {
+            Quagga.init({
+                inputStream : {
+                    name : "Live",
+                    type : "LiveStream",
+                    target: document.querySelector('#interactive'), 
+                    constraints: {
+                        facingMode: "environment" // Caméra arrière
+                    },
+                    area: { // Restreint la zone d'analyse au centre pour plus de rapidité
+                        top: "20%",
+                        right: "10%",
+                        left: "10%",
+                        bottom: "20%"
+                    }
+                },
+                decoder : {
+                    // Liste des codes-barres les plus courants (Europe et US)
+                    readers : [
+                        "ean_reader",      // Code barre classique supermarché (EAN 13)
+                        "ean_8_reader",    // Petit code barre (EAN 8)
+                        "code_128_reader", // Code barre logistique / colis
+                        "upc_reader"       // Code barre américain
+                    ]
+                }
+            }, function(err) {
+                if (err) {
+                    alert("Erreur Quagga : " + err);
+                    return;
+                }
+                Quagga.start();
                 isScanning = true;
                 btnStart.style.display = 'none';
                 btnStop.style.display = 'block';
-            })
-            .catch((err) => {
-                alert("Erreur d'accès à la caméra : " + err);
             });
         }
+
         function stopScanner() {
-            if (html5QrCode && isScanning) {
-                html5QrCode.stop().then(() => {
-                    isScanning = false;
-                    btnStart.style.display = 'block';
-                    btnStop.style.display = 'none';
-                }).catch(err => {
-                    console.error("Erreur lors de l'arrêt du scanner", err);
-                });
+            if (isScanning) {
+                Quagga.stop();
+                isScanning = false;
+                btnStart.style.display = 'block';
+                btnStop.style.display = 'none';
             }
         }
 
-        // Ce qui se passe quand un code est détecté
-        function onScanSuccess(decodedText, decodedResult) {
+        // Événement déclenché à chaque détection réussie
+        Quagga.onDetected(function(result) {
+            const code = result.codeResult.code;
             const currentTime = new Date().getTime();
             
-            // "Anti-rebond" (Debounce) : on évite de scanner le même code 50 fois par seconde.
-            // Il faut attendre 2 secondes pour rescanner le même code, ou scanner un code différent.
-            if (decodedText === lastScannedCode && (currentTime - lastScanTime) < 2000) {
+            // Anti-rebond (1.5 secondes)
+            if (code === lastScannedCode && (currentTime - lastScanTime) < 1500) {
                 return; 
             }
 
-            // Met à jour les variables de contrôle
-            lastScannedCode = decodedText;
+            lastScannedCode = code;
             lastScanTime = currentTime;
 
-            // Ajoute au stock
-            if (stock[decodedText]) {
-                stock[decodedText]++;
+            if (stock[code]) {
+                stock[code]++;
             } else {
-                stock[decodedText] = 1;
+                stock[code] = 1;
             }
 
-            // Un petit retour haptique pour l'iPhone (vibration légère si supportée)
             if (navigator.vibrate) {
                 navigator.vibrate(100);
             }
 
             updateStockUI();
-        }
+        });
 
-        // Requis par la bibliothèque mais on l'ignore silencieusement pour ne pas spammer la console
-        function onScanFailure(error) {
-            // console.warn("Code non détecté", error);
-        }
-
-        // Mise à jour de l'affichage du tableau
         function updateStockUI() {
-            stockBody.innerHTML = ''; // On vide le tableau
+            stockBody.innerHTML = ''; 
             
             for (const [code, quantity] of Object.entries(stock)) {
                 const tr = document.createElement('tr');
-                
                 const tdCode = document.createElement('td');
                 tdCode.textContent = code;
-                
                 const tdQty = document.createElement('td');
                 tdQty.innerHTML = `<span class="badge">${quantity}</span>`;
-                
                 tr.appendChild(tdCode);
                 tr.appendChild(tdQty);
                 stockBody.appendChild(tr);
             }
         }
 
-        // Écouteurs d'événements
         btnStart.addEventListener('click', initScanner);
         btnStop.addEventListener('click', stopScanner);
     </script>
