@@ -112,7 +112,25 @@
   #conso-chart-wrap { display: block; background: #f8f8fa; border-radius: 8px; padding: 4px; margin-bottom: 6px; height: 120px; flex-shrink: 0; position: relative; width: 100%; }
   #conso-chart-title { font-size: 11px; font-weight: 700; margin: 0 0 2px 0; color: #3c3c43; text-align: center; }
 
+  /* Calendrier de consommation */
+  .calendar-legend { font-size: 10px; color: #8e8e93; margin-bottom: 6px; line-height: 1.4; }
+  .calendar-toolbar { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+  .calendar-toolbar select { width: auto; font-size: 11px; padding: 4px; }
+  .calendar-toolbar input { flex: 1; padding: 5px 8px; font-size: 11px; border-radius: 8px; border: 1px solid #c6c6c8; }
+  .calendar-total-global { background: #f2f2f7; border: 1px solid #e5e5ea; border-radius: 6px; padding: 6px 8px; font-size: 11px; font-weight: 700; margin-bottom: 6px; text-align: center; }
+  .calendar-scroll { overflow: auto; flex: 1; min-height: 0; }
+  table.calendar-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .calendar-table th, .calendar-table td { text-align: center; font-size: 9px; padding: 3px 1px; border-bottom: 1px solid #f0f0f2; white-space: nowrap; }
+  .calendar-table th { position: sticky; top: 0; background: #fff; z-index: 2; color: #8e8e93; font-weight: 700; }
+  .calendar-table th:first-child, .calendar-table td:first-child { position: sticky; left: 0; background: #fff; z-index: 1; text-align: left; font-size: 10px; padding-left: 2px; width: 78px; max-width: 78px; overflow: hidden; text-overflow: ellipsis; }
+  .calendar-table th:nth-child(2), .calendar-table td:nth-child(2) { position: sticky; left: 78px; background: #fff; z-index: 1; font-weight: 700; width: 30px; }
+  .calendar-table th:first-child { z-index: 3; }
+  .calendar-table td:first-child { z-index: 1; }
+  .calendar-delta-up { color: #ff3b30; font-size: 8px; display: block; }
+  .calendar-delta-down { color: #34c759; font-size: 8px; display: block; }
+
   /* Modales, Toast, Loading */
+
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); align-items: center; justify-content: center; z-index: 100; padding: 12px; }
   .modal-overlay.show { display: flex; }
   .modal-card { background: #fff; border-radius: 12px; padding: 12px; width: 100%; max-width: 360px; max-height: 90vh; overflow-y: auto; }
@@ -176,7 +194,10 @@
     <div class="stock-container">
       <div class="stock-header-row">
         <h2>Stock global</h2>
-        <button class="btn-small btn-green" onclick="openModalNouveau(null)">+ Nouvel article</button>
+        <div style="display:flex; gap:4px;">
+          <button class="btn-small btn-ghost" onclick="openCalendrierConso()">📅</button>
+          <button class="btn-small btn-green" onclick="openModalNouveau(null)">+ Nouvel article</button>
+        </div>
       </div>
       <input type="text" id="stock-search" placeholder="Rechercher (nom ou code)..." oninput="renderStock()" style="margin-bottom:6px; padding: 4px 8px; font-size: 11px;">
       <div class="stock-summary" id="stock-summary">
@@ -431,6 +452,34 @@
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-switch-frs')">Annuler</button>
       <button class="btn-primary" onclick="submitSwitchFournisseurEnMasse()">Appliquer le changement</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-calendrier-conso">
+  <div class="modal-card modal-card-large" style="display:flex; flex-direction:column; max-height:88vh;">
+    <h3 style="flex-shrink:0;">📅 Consommation par mois</h3>
+    <div class="calendar-legend" style="flex-shrink:0;">
+      Pour chaque produit, combien tu en as vendu chaque mois (pas de dates précises, juste le mois). Une case foncée = un mois où tu en as beaucoup vendu pour <em>ce produit-là</em>. Change l'année pour comparer.
+    </div>
+    <div class="calendar-toolbar" style="flex-shrink:0;">
+      <select id="calendrier-year" onchange="renderCalendrierConso()"></select>
+      <input type="text" id="calendrier-search" placeholder="Filtrer un article..." oninput="renderCalendrierConso()">
+    </div>
+    <div class="calendar-total-global" id="calendrier-total-global" style="flex-shrink:0;"></div>
+    <div class="calendar-scroll">
+      <table class="calendar-table">
+        <thead>
+          <tr>
+            <th>Article</th><th>Tot.</th>
+            <th>J</th><th>F</th><th>M</th><th>A</th><th>M</th><th>J</th><th>J</th><th>A</th><th>S</th><th>O</th><th>N</th><th>D</th>
+          </tr>
+        </thead>
+        <tbody id="calendrier-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions" style="flex-shrink:0;">
+      <button class="btn-secondary" onclick="closeModal('modal-calendrier-conso')">Fermer</button>
     </div>
   </div>
 </div>
@@ -949,6 +998,79 @@ function renderStock() {
 
   document.getElementById('tot-qty').textContent = `${totalItems} (${fullList.length} fiches)`;
   document.getElementById('tot-val').textContent = totalValue.toFixed(2) + ' € TTC';
+}
+
+// ================== CALENDRIER DE CONSOMMATION ==================
+let calendrierConso = null; // { codeBarre: { annee: [12 valeurs] } }
+let calendrierYears = [];
+
+async function openCalendrierConso() {
+  showModal('modal-calendrier-conso');
+  if (calendrierConso) { renderCalendrierConso(); return; }
+  setGlobalLoading(true);
+  try {
+    const res = await apiGet('getConsoCalendrier');
+    if (res.error) throw new Error(res.error);
+    calendrierConso = res.conso || {};
+    calendrierYears = res.years || [];
+    const sel = document.getElementById('calendrier-year');
+    sel.innerHTML = calendrierYears.map(y => `<option value="${y}">${y}</option>`).join('') || '<option>-</option>';
+  } catch (e) {
+    toast('Erreur calendrier : ' + e.message);
+    closeModal('modal-calendrier-conso');
+    return;
+  } finally {
+    setGlobalLoading(false);
+  }
+  renderCalendrierConso();
+}
+
+function heatStyle(val, max) {
+  if (!val) return '';
+  const ratio = max > 0 ? val / max : 0;
+  const alpha = (0.15 + 0.65 * ratio).toFixed(2);
+  return `background: rgba(0,122,255,${alpha}); ${ratio > 0.55 ? 'color:#fff;' : ''}`;
+}
+
+function renderCalendrierConso() {
+  if (!calendrierConso) return;
+  const year = Number(document.getElementById('calendrier-year').value);
+  const filtre = (document.getElementById('calendrier-search').value || '').toLowerCase().trim();
+
+  let totalAnnee = 0, totalAnneePrec = 0;
+
+  const rows = (state.produits || []).map(p => {
+    const parAnnee = calendrierConso[p.codeBarre] || {};
+    const moisArr = parAnnee[year] || new Array(12).fill(0);
+    const total = moisArr.reduce((a, b) => a + b, 0);
+    const moisArrPrec = parAnnee[year - 1] || null;
+    const totalPrec = moisArrPrec ? moisArrPrec.reduce((a, b) => a + b, 0) : null;
+    return { p, moisArr, total, totalPrec };
+  }).filter(r => r.total > 0 && (!filtre || String(r.p.designation || '').toLowerCase().includes(filtre) || r.p.codeBarre.includes(filtre)))
+    .sort((a, b) => b.total - a.total);
+
+  rows.forEach(r => { totalAnnee += r.total; if (r.totalPrec !== null) totalAnneePrec += r.totalPrec; });
+
+  const globalDiv = document.getElementById('calendrier-total-global');
+  if (totalAnneePrec > 0) {
+    const pct = Math.round(((totalAnnee - totalAnneePrec) / totalAnneePrec) * 100);
+    const fleche = pct >= 0 ? `📈 +${pct}%` : `📉 ${pct}%`;
+    globalDiv.textContent = `Total ${year} : ${totalAnnee} vendus (${fleche} vs ${year - 1})`;
+  } else {
+    globalDiv.textContent = `Total ${year} : ${totalAnnee} vendus`;
+  }
+
+  const tbody = document.getElementById('calendrier-body');
+  tbody.innerHTML = rows.map(r => {
+    const max = Math.max(...r.moisArr, 1);
+    const cells = r.moisArr.map(v => `<td style="${heatStyle(v, max)}">${v || ''}</td>`).join('');
+    let delta = '';
+    if (r.totalPrec !== null && r.totalPrec > 0) {
+      const pct = Math.round(((r.total - r.totalPrec) / r.totalPrec) * 100);
+      delta = pct >= 0 ? `<span class="calendar-delta-up">▲${pct}%</span>` : `<span class="calendar-delta-down">▼${Math.abs(pct)}%</span>`;
+    }
+    return `<tr><td title="${escapeHtml(r.p.designation)}">${escapeHtml(r.p.designation)}${delta}</td><td>${r.total}</td>${cells}</tr>`;
+  }).join('') || '<tr><td colspan="14" class="muted" style="text-align:left;">Aucune consommation cette année-là</td></tr>';
 }
 
 let analyseConso = null;
