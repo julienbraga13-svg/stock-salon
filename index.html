@@ -98,6 +98,7 @@
   .modal-overlay.show { display: flex; }
   .modal-card { background: #fff; border-radius: 14px; padding: 16px; width: 100%; max-width: 360px; max-height: 90vh; overflow-y: auto; }
   .modal-card h3 { margin: 0 0 6px 0; font-size: 16px; }
+  .modal-card-large { max-width: 440px; }
   .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
   #toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px); background: #1c1c1e; color: #fff; padding: 10px 18px; border-radius: 20px; font-size: 13px; opacity: 0; transition: all 0.25s; z-index: 200; max-width: 90vw; text-align: center; }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -127,6 +128,7 @@
       <button onclick="manualSubmit()">Valider</button>
     </div>
   </div>
+  <div id="scanner-anchor" style="display:none;"></div>
 
   <!-- Vue Sortie -->
   <div class="view" id="view-sortie">
@@ -223,32 +225,8 @@
   <div class="view" id="view-reception">
     <div class="stock-container">
       <h2>Réception de commande</h2>
-      <p class="muted" style="margin-top:0;">Cliquez sur une commande ci-dessous pour lancer la réception par scan :</p>
-      
-      <!-- Liste des commandes -->
-      <div id="commandes-cards-container" style="margin-bottom: 10px; max-height: 140px; overflow-y: auto;"></div>
-
-      <div id="reception-details" style="display:none; flex-direction: column; flex-grow: 1; min-height: 0; border-top: 1px solid #e5e5ea; padding-top: 8px;">
-        <p style="margin:0 0 4px 0;"><strong>Commande active :</strong> <span id="rec-id-cmd"></span> (<span id="rec-frs"></span>)</p>
-        <p class="muted" style="margin:0 0 6px 0;">Scannez un article ou saisissez sa quantité reçue :</p>
-        
-        <!-- Contrôle de quantité pour le dernier article scanné -->
-        <div id="reception-active-item-bar" style="background: #f3e8ff; border: 1px solid #af52de; border-radius: 8px; padding: 8px; margin-bottom: 8px; display: none;">
-          <div style="font-size: 12px; font-weight: 700; color: #af52de; margin-bottom: 4px;" id="rec-active-name">Aucun article sélectionné</div>
-          <div style="display: flex; gap: 6px; align-items: center;">
-            <label style="margin:0; font-size:11px;">Qté à réceptionner :</label>
-            <input type="number" id="rec-manual-qty" min="1" value="1" style="width: 80px;">
-            <button class="btn-small" style="background:#af52de; color:#fff;" onclick="validerQuantiteReception()">Valider la quantité</button>
-          </div>
-        </div>
-
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>Article</th><th>Attendu</th><th>Reçu</th><th>Statut</th></tr></thead>
-            <tbody id="reception-items-body"></tbody>
-          </table>
-        </div>
-      </div>
+      <p class="muted" style="margin-top:0;">Sélectionnez une commande pour l'ouvrir en mode scan :</p>
+      <div id="commandes-cards-container" style="flex-grow:1; overflow-y: auto;"></div>
     </div>
   </div>
 
@@ -378,6 +356,36 @@
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-nouveau-frs')">Annuler</button>
       <button class="btn-primary" onclick="submitNouveauFournisseurRapide()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-reception-scan">
+  <div class="modal-card modal-card-large">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h3 style="margin:0;">Réception : <span id="rec-modal-id"></span></h3>
+      <button class="btn-small btn-ghost" onclick="closeReceptionModal()">✕ Fermer</button>
+    </div>
+    <p class="muted" style="margin:4px 0 8px 0;">Fournisseur : <span id="rec-modal-frs"></span></p>
+
+    <!-- Le scanner partagé est déplacé ici à l'ouverture de la fenêtre -->
+    <div id="reception-scanner-mount"></div>
+
+    <!-- Contrôle de quantité pour le dernier article scanné -->
+    <div id="reception-active-item-bar" style="background: #f3e8ff; border: 1px solid #af52de; border-radius: 8px; padding: 8px; margin: 8px 0; display: none;">
+      <div style="font-size: 12px; font-weight: 700; color: #af52de; margin-bottom: 4px;" id="rec-active-name">Aucun article sélectionné</div>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <label style="margin:0; font-size:11px;">Qté à réceptionner :</label>
+        <input type="number" id="rec-manual-qty" min="1" value="1" style="width: 80px;">
+        <button class="btn-small" style="background:#af52de; color:#fff;" onclick="validerQuantiteReception()">Valider la quantité</button>
+      </div>
+    </div>
+
+    <div class="table-scroll" style="max-height: 28vh;">
+      <table>
+        <thead><tr><th>Article</th><th>Attendu</th><th>Reçu</th><th>Statut</th></tr></thead>
+        <tbody id="reception-items-body"></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -567,6 +575,7 @@ async function validerQuantiteReception() {
     if (res.toutRecu) {
       toast('🎉 Commande entièrement réceptionnée !');
       setTimeout(() => {
+        closeReceptionModal();
         loadData();
         commandeEnCoursSelectionnee = null;
         renderCommandesReceptionList();
@@ -625,17 +634,20 @@ function startAutoRefresh() {
 
 // ================== NAVIGATION & MODES ==================
 function switchMode(mode) {
+  // Si la fenêtre de réception est ouverte et qu'on change d'onglet, on la referme proprement
+  if (document.getElementById('modal-reception-scan').classList.contains('show')) closeReceptionModal();
+
   currentMode = mode;
   document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
   document.getElementById('view-' + mode).style.display = 'flex';
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   
   const sc = document.getElementById('scanner-section');
-  if (mode === 'entree' || mode === 'sortie' || mode === 'reception') {
+  if (mode === 'entree' || mode === 'sortie') {
     sc.style.display = 'flex';
     sc.classList.toggle('mode-sortie', mode === 'sortie');
-    sc.classList.toggle('mode-reception', mode === 'reception');
-    document.getElementById('scanner-mode-label').textContent = mode === 'entree' ? 'Mode Entrée' : (mode === 'sortie' ? 'Mode Sortie' : 'Mode Réception Commande');
+    sc.classList.remove('mode-reception');
+    document.getElementById('scanner-mode-label').textContent = mode === 'entree' ? 'Mode Entrée' : 'Mode Sortie';
     startScanner();
   } else { sc.style.display = 'none'; stopScanner(); }
 
@@ -659,7 +671,6 @@ function renderCommandesReceptionList() {
 
   if (cmds.length === 0) {
     container.innerHTML = '<p class="muted" style="text-align:center; margin:10px 0;">Aucune commande en attente de réception.</p>';
-    document.getElementById('reception-details').style.display = 'none';
     commandeEnCoursSelectionnee = null;
     return;
   }
@@ -678,19 +689,46 @@ function renderCommandesReceptionList() {
     </div>`;
   }).join('');
 
-  if (commandeEnCoursSelectionnee) {
-    document.getElementById('reception-details').style.display = 'flex';
-    document.getElementById('rec-id-cmd').textContent = commandeEnCoursSelectionnee.id;
-    document.getElementById('rec-frs').textContent = commandeEnCoursSelectionnee.fournisseur;
+  // Si la fenêtre de réception est ouverte, on garde son tableau à jour (ex: après un scan ailleurs)
+  if (commandeEnCoursSelectionnee && document.getElementById('modal-reception-scan').classList.contains('show')) {
     renderReceptionTable();
-  } else {
-    document.getElementById('reception-details').style.display = 'none';
   }
 }
 
 function selectionnerCommandeReception(id) {
   commandeEnCoursSelectionnee = state.commandesEnCours.find(c => c.id === id);
+  if (!commandeEnCoursSelectionnee) return;
   renderCommandesReceptionList();
+  openReceptionModal();
+}
+
+// Ouvre la fenêtre de réception : y déplace le scanner partagé et l'active
+function openReceptionModal() {
+  if (!commandeEnCoursSelectionnee) return;
+  document.getElementById('rec-modal-id').textContent = commandeEnCoursSelectionnee.id;
+  document.getElementById('rec-modal-frs').textContent = commandeEnCoursSelectionnee.fournisseur;
+  renderReceptionTable();
+
+  const sc = document.getElementById('scanner-section');
+  document.getElementById('reception-scanner-mount').appendChild(sc);
+  sc.style.display = 'flex';
+  sc.classList.add('mode-reception');
+  document.getElementById('scanner-mode-label').textContent = 'Mode Réception Commande';
+  startScanner();
+
+  showModal('modal-reception-scan');
+}
+
+// Ferme la fenêtre : arrête le scanner et le replace à son emplacement d'origine dans la page
+function closeReceptionModal() {
+  stopScanner();
+  const sc = document.getElementById('scanner-section');
+  const anchor = document.getElementById('scanner-anchor');
+  anchor.parentNode.insertBefore(sc, anchor);
+  sc.style.display = 'none';
+  document.getElementById('reception-active-item-bar').style.display = 'none';
+  dernierArticleScanneCode = null;
+  closeModal('modal-reception-scan');
 }
 
 function renderReceptionTable() {
