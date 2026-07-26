@@ -475,6 +475,7 @@ let dernierArticleScanneCode = null;
 async function handleScannedCode(code) {
   if (!dataLoaded) { toast('Chargement en cours...'); return; }
   
+  // GESTION MODE RECEPTION DE COMMANDE
   if (currentMode === 'reception') {
     if (!commandeEnCoursSelectionnee) { toast("Veuillez d'abord sélectionner une commande ci-dessus !"); return; }
     
@@ -492,6 +493,7 @@ async function handleScannedCode(code) {
     return;
   }
 
+  // GESTIONS MODES ENTREE / SORTIE
   const p = state.produits.find(x => x.codeBarre === String(code));
   if (currentMode === 'sortie' && !p) { toast("Article inconnu. Créez-le en mode Entrée."); return; }
   if (!p) { openModalNouveau(code); return; }
@@ -503,9 +505,18 @@ async function handleScannedCode(code) {
   try {
     const res = await apiPost('movement', { codeBarre: code, type, quantite: 1, commentaire: '' });
     if (res.error) { toast('Erreur : ' + res.error); return; }
+    
+    // MISE A JOUR LOCALE IMMEDIATE (Évite le rechargement global lourd)
+    p.qte = res.newQte;
     toast((type === 'Entrée' ? '+1 ' : '-1 ') + (p.designation || code) + ' → ' + res.newQte);
-    await loadData();
-  } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
+    
+    // Rafraîchissement léger des vues actives sans couper le scanner
+    if (currentMode === 'stock') renderStock();
+  } catch (err) { 
+    toast('Erreur : ' + err.message); 
+  } finally { 
+    setGlobalLoading(false); 
+  }
 }
 
 async function supprimerFournisseurActuel() {
