@@ -127,30 +127,17 @@
         function initScanner() {
             html5QrCode = new Html5Qrcode("reader");
 
-            // 1. On cible uniquement les codes barres classiques pour accélérer le traitement (on exclut les QR codes)
-            const formats = [
-                Html5QrcodeSupportedFormats.EAN_13,
-                Html5QrcodeSupportedFormats.EAN_8,
-                Html5QrcodeSupportedFormats.CODE_128,
-                Html5QrcodeSupportedFormats.CODE_39,
-                Html5QrcodeSupportedFormats.UPC_A
-            ];
-
             const config = { 
-                fps: 15, // On augmente légèrement la fréquence pour plus de réactivité
-                qrbox: { width: 250, height: 100 }, // Une zone de scan plus écrasée, idéale pour les codes barres 1D
-                formatsToSupport: formats
+                fps: 10, 
+                // On élargit la boîte à 300px. 
+                // Cela vous permet de reculer le téléphone, là où l'image sera nette.
+                qrbox: { width: 300, height: 120 }, 
+                aspectRatio: 1.333334
             };
 
-            // 2. On force l'iPhone à utiliser une haute résolution et on tente de forcer l'autofocus continu
-            const cameraConstraints = {
-                facingMode: "environment",
-                width: { min: 1280, ideal: 1920, max: 2560 }, // Force la HD/Full HD
-                advanced: [{ focusMode: "continuous" }] // Tente de forcer la mise au point de Safari
-            };
-
+            // On revient à la configuration de base, la seule qu'iOS accepte sans broncher.
             html5QrCode.start(
-                cameraConstraints, 
+                { facingMode: "environment" }, 
                 config, 
                 onScanSuccess, 
                 onScanFailure
