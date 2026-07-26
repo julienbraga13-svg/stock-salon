@@ -210,7 +210,6 @@
   </div>
 
   <!-- Vue Réception -->
-<!-- Vue Réception -->
   <div class="view" id="view-reception">
     <div class="stock-container">
       <h2>Réception de commande</h2>
@@ -457,7 +456,6 @@ async function handleScannedCode(code) {
   if (currentMode === 'reception') {
     if (!commandeEnCoursSelectionnee) { toast("Veuillez d'abord sélectionner une commande ci-dessus !"); return; }
     
-    // Vérifier si l'article fait partie de la commande active
     const itemTrouve = commandeEnCoursSelectionnee.contenu.find(i => String(i.codeBarre) === String(code));
     if (!itemTrouve) {
       toast("Cet article ne fait pas partie de cette commande.");
@@ -472,7 +470,7 @@ async function handleScannedCode(code) {
     return;
   }
 
-  // GESTIONS MODES ENTREE / SORTIE (Code d'origine)
+  // GESTIONS MODES ENTREE / SORTIE
   const p = state.produits.find(x => x.codeBarre === String(code));
   if (currentMode === 'sortie' && !p) { toast("Article inconnu. Créez-le en mode Entrée."); return; }
   if (!p) { openModalNouveau(code); return; }
@@ -488,6 +486,7 @@ async function handleScannedCode(code) {
     await loadData();
   } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
 }
+
 async function validerQuantiteReception() {
   if (!commandeEnCoursSelectionnee || !dernierArticleScanneCode) return;
   const qteSaisie = Number(document.getElementById('rec-manual-qty').value) || 1;
@@ -505,7 +504,6 @@ async function validerQuantiteReception() {
     commandeEnCoursSelectionnee.contenu = res.contenu;
     renderReceptionTable();
     
-    // Masquer la barre de saisie rapide après validation
     document.getElementById('reception-active-item-bar').style.display = 'none';
     dernierArticleScanneCode = null;
 
@@ -517,22 +515,6 @@ async function validerQuantiteReception() {
         renderCommandesReceptionList();
       }, 1500);
     }
-  } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
-}
-  // GESTIONS MODES ENTREE / SORTIE
-  const p = state.produits.find(x => x.codeBarre === String(code));
-  if (currentMode === 'sortie' && !p) { toast("Article inconnu. Créez-le en mode Entrée."); return; }
-  if (!p) { openModalNouveau(code); return; }
-
-  const type = currentMode === 'entree' ? 'Entrée' : 'Sortie';
-  if (type === 'Sortie' && p.qte <= 0) if (!confirm('Stock à 0. Continuer ?')) return;
-
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('movement', { codeBarre: code, type, quantite: 1, commentaire: '' });
-    if (res.error) { toast('Erreur : ' + res.error); return; }
-    toast((type === 'Entrée' ? '+1 ' : '-1 ') + (p.designation || code) + ' → ' + res.newQte);
-    await loadData();
   } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
 }
 
@@ -556,7 +538,6 @@ async function loadData() {
     };
     dataLoaded = true;
     
-    // Si une commande est en cours de sélection, mettre à jour sa référence locale
     if (commandeEnCoursSelectionnee) {
       const updatedCmd = state.commandesEnCours.find(c => c.id === commandeEnCoursSelectionnee.id);
       if (updatedCmd) {
@@ -660,7 +641,6 @@ function renderStock() {
   const filter = document.getElementById('stock-search').value.trim().toLowerCase();
   let totalItems = 0, totalValue = 0;
 
-  // Créer un ensemble des codes-barres actuellement commandés et en attente
   const codesCommandes = new Set();
   (state.commandesEnCours || []).forEach(cmd => {
     (cmd.contenu || []).forEach(item => {
@@ -877,7 +857,6 @@ async function deleteHistoriqueRow(id) {
 function renderSuggestions() {
   const tbody = document.getElementById('suggestions-body');
   
-  // Récupérer la liste de tous les codes-barres ayant déjà une commande en cours non soldée
   const codesCommandes = new Set();
   (state.commandesEnCours || []).forEach(cmd => {
     (cmd.contenu || []).forEach(item => {
@@ -887,7 +866,6 @@ function renderSuggestions() {
     });
   });
 
-  // Filtrer les articles sous le seuil ET qui ne sont PAS déjà commandés
   const list = state.produits.filter(p => p.qte <= p.seuil && !codesCommandes.has(String(p.codeBarre)));
   
   tbody.innerHTML = list.map(p => `<tr>
@@ -907,7 +885,6 @@ function renderConfigForm() {
   setVal('cfg-nom', c.nom); setVal('cfg-representant', c.representant); setVal('cfg-siret', c.siret);
   setVal('cfg-adresse', c.adresse); setVal('cfg-mail', c.mail); setVal('cfg-tel', c.tel);
 
-  // Alimenter le menu déroulant des fournisseurs enregistrés
   const selectFrs = document.getElementById('cfg-select-frs');
   if (selectFrs && c.fournisseurs) {
     let list = [];
