@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Douchette iOS - Auto & Large</title>
+    <title>Douchette iOS - Grand Guide</title>
     
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     
@@ -27,7 +27,7 @@
         }
         #video-container {
             width: 100%;
-            height: 25vh;
+            height: 28vh; /* Légèrement ajusté pour donner plus d'espace au grand cadre */
             border-radius: 12px;
             overflow: hidden;
             background-color: #000;
@@ -41,17 +41,17 @@
             display: block;
             object-fit: cover;
         }
-        /* Rectangle vert élargi occupant une plus grande partie du tiers supérieur */
+        /* Rectangle vert encore plus grand occupant presque tout l'espace vidéo */
         .scan-guide {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 90%;
-            height: 75px; 
+            width: 95%;
+            height: 85%; 
             border: 2px solid #34c759;
             border-radius: 8px;
-            box-shadow: 0 0 0 2000px rgba(0,0,0,0.5);
+            box-shadow: 0 0 0 2000px rgba(0,0,0,0.4);
             pointer-events: none;
         }
         #flash-msg {
@@ -224,7 +224,6 @@
             }
         }
 
-        // Lancement automatique dès le chargement de la page (Safari demandera l'autorisation de la caméra une seule fois)
         window.addEventListener('DOMContentLoaded', () => {
             initScanner();
         });
