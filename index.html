@@ -618,6 +618,7 @@ async function loadData(silent = false) {
 function startAutoRefresh() {
   if (refreshInterval) clearInterval(refreshInterval);
   refreshInterval = setInterval(() => {
+    if (document.hidden) return; // page en arrière-plan : on ne charge pas pour rien
     loadData(true); // Chargement silencieux en arrière-plan
   }, 20000);
 }
@@ -641,7 +642,7 @@ function switchMode(mode) {
   if (mode === 'stock') renderStock();
   if (mode === 'commande') { renderSuggestions(); renderManualSelect(); renderBrouillons(); }
   if (mode === 'reception') { renderCommandesReceptionList(); }
-  if (mode === 'analyse') renderAnalyse();
+  if (mode === 'analyse') loadAnalyseData();
 }
 
 function renderAll() {
@@ -743,17 +744,28 @@ function renderStock() {
   document.getElementById('tot-val').textContent = totalValue.toFixed(2) + ' € TTC';
 }
 
+let analyseConso = null; // cache de l'agrégat de consommation (rempli à l'ouverture de l'onglet)
+
+async function loadAnalyseData() {
+  const tbody = document.getElementById('analyse-body');
+  tbody.innerHTML = '<tr><td colspan="5" class="muted">Chargement...</td></tr>';
+  try {
+    const res = await apiGet('getAnalyse');
+    if (res.error) throw new Error(res.error);
+    analyseConso = res.conso || {};
+  } catch (e) {
+    analyseConso = {};
+    toast('Erreur analyse : ' + e.message);
+  }
+  renderAnalyse();
+}
+
 function renderAnalyse() {
   const tbody = document.getElementById('analyse-body');
   const weeksCoverage = Number(document.getElementById('analyse-couverture').value) || 2;
-  const limitDate = new Date(); limitDate.setMonth(new Date().getMonth() - 12);
-  
-  const conso = {};
-  state.historique.forEach(h => {
-    if (h.type === 'Sortie' && new Date(h.date) >= limitDate) {
-      conso[h.codeBarre] = (conso[h.codeBarre] || 0) + h.quantite;
-    }
-  });
+  if (!analyseConso) { loadAnalyseData(); return; }
+
+  const conso = analyseConso;
 
   const list = state.produits.map(p => {
     const total12m = conso[p.codeBarre] || 0;
