@@ -321,12 +321,16 @@
 
 <div class="modal-overlay" id="modal-ajust">
   <div class="modal-card">
-    <h3>Réajustement stock</h3>
+    <h3>Modifier l'article</h3>
     <p id="adj-info" class="muted"></p>
     <label>Nouvelle quantité</label>
     <input type="number" id="adj-qty" min="0">
-    <label>Motif</label>
-    <input type="text" id="adj-comment" placeholder="ex: inventaire physique">
+    <label>Prix d'achat (€)</label>
+    <input type="number" id="adj-prix" min="0" step="0.01">
+    <label>Seuil critique de réappro</label>
+    <input type="number" id="adj-seuil" min="0">
+    <label>Motif de l'ajustement</label>
+    <input type="text" id="adj-comment" placeholder="ex: inventaire physique, correction prix...">
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-ajust')">Annuler</button>
       <button class="btn-primary" onclick="submitAjust()">Valider</button>
@@ -775,8 +779,10 @@ function openModalAjust(code) {
   const p = findProduit(code);
   if (!p) return;
   document.getElementById('modal-ajust').dataset.code = code;
-  document.getElementById('adj-info').textContent = (p.designation || code) + ' — stock actuel : ' + p.qte;
+  document.getElementById('adj-info').textContent = (p.designation || code);
   document.getElementById('adj-qty').value = p.qte;
+  document.getElementById('adj-prix').value = p.prixAchat !== undefined ? p.prixAchat : 0;
+  document.getElementById('adj-seuil').value = p.seuil !== undefined ? p.seuil : 0;
   document.getElementById('adj-comment').value = '';
   showModal('modal-ajust');
 }
@@ -784,14 +790,29 @@ function openModalAjust(code) {
 async function submitAjust() {
   const code = document.getElementById('modal-ajust').dataset.code;
   const newQte = Number(document.getElementById('adj-qty').value);
+  const newPrix = Number(document.getElementById('adj-prix').value);
+  const newSeuil = Number(document.getElementById('adj-seuil').value);
+  
   if (isNaN(newQte) || newQte < 0) { toast('Quantité invalide'); return; }
+  if (isNaN(newPrix) || newPrix < 0) { toast('Prix invalide'); return; }
+  if (isNaN(newSeuil) || newSeuil < 0) { toast('Seuil invalide'); return; }
+  
   const comment = document.getElementById('adj-comment').value.trim();
   closeModal('modal-ajust');
   setGlobalLoading(true);
+  
   try {
-    const res = await apiPost('adjustStock', { codeBarre: code, newQte, commentaire: comment });
+    // On envoie les 3 informations d'un coup
+    const res = await apiPost('adjustStock', { 
+      codeBarre: code, 
+      newQte, 
+      prixAchat: newPrix, 
+      seuil: newSeuil, 
+      commentaire: comment 
+    });
+    
     if (res.error) { toast('Erreur : ' + res.error); return; }
-    toast('Stock ajusté ✔');
+    toast('Article mis à jour ✔');
     await loadData();
   } catch (err) {
     toast('Erreur réseau : ' + err.message);
