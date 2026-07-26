@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Douchette iOS - Capture Native</title>
+    <title>Douchette iOS - Prétraitement</title>
     
-    <!-- On reprend html5-qrcode qui est excellent pour lire des images fixes -->
+    <!-- On utilise html5-qrcode pour son moteur d'analyse d'images fixes -->
     <script src="https://unpkg.com/html5-qrcode"></script>
     
     <style>
@@ -36,10 +36,9 @@
             cursor: pointer;
             box-sizing: border-box;
         }
-        /* On cache l'input fichier classique */
-        #file-input {
-            display: none;
-        }
+        /* Cache l'input fichier classique */
+        #file-input { display: none; }
+
         .stock-container {
             background: white;
             border-radius: 12px;
@@ -56,11 +55,7 @@
             text-align: left;
             border-bottom: 1px solid #c6c6c8;
         }
-        th {
-            font-weight: 600;
-            color: #8e8e93;
-            font-size: 14px;
-        }
+        th { font-weight: 600; color: #8e8e93; font-size: 14px; }
         .badge {
             background-color: #34c759;
             color: white;
@@ -69,26 +64,32 @@
             font-size: 14px;
             font-weight: bold;
         }
-        #loading {
+        #status {
             text-align: center;
             display: none;
-            color: #007aff;
             font-weight: bold;
             margin-bottom: 15px;
         }
+        .processing { color: #007aff; }
+        .error { color: #ff3b30; }
+        
+        /* Canvas invisible pour le traitement */
+        #processing-canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <h1>📦 Gestion de Stock (Mode Photo)</h1>
+    <h1>📦 Douchette iOS Pro</h1>
     
     <!-- Bouton qui va déclencher l'appareil photo natif -->
-    <label for="file-input" class="btn">📸 Scanner un produit</label>
+    <label for="file-input" class="btn">📸 Prendre Photo & Scanner</label>
     
-    <!-- L'attribut 'capture="environment"' force l'ouverture de l'appareil photo arrière sur iOS -->
     <input type="file" id="file-input" accept="image/*" capture="environment">
 
-    <div id="loading">Analyse en cours...</div>
+    <div id="status"></div>
+    
+    <!-- Canvas caché -->
+    <canvas id="processing-canvas"></canvas>
 
     <div class="stock-container">
         <h2>Inventaire en cours</h2>
@@ -108,40 +109,94 @@
         let stock = {}; 
         const fileInput = document.getElementById('file-input');
         const stockBody = document.getElementById('stock-body');
-        const loadingIndicator = document.getElementById('loading');
+        const statusIndicator = document.getElementById('status');
+        const canvas = document.getElementById('processing-canvas');
+        const ctx = canvas.getContext('2d');
 
-        // On instancie la bibliothèque pour lire des fichiers
-        const html5QrCode = new Html5Qrcode("loading"); // On utilise la div loading comme point d'ancrage virtuel
+        // Initialisation de la bibliothèque en mode virtuel (on n'affiche pas de vidéo)
+        const html5QrCode = new Html5Qrcode("processing-canvas");
 
         fileInput.addEventListener('change', function(e) {
-            if (e.target.files.length == 0) {
-                return;
-            }
+            if (e.target.files.length == 0) return;
 
             const imageFile = e.target.files[0];
-            loadingIndicator.style.display = 'block';
+            statusIndicator.style.display = 'block';
+            statusIndicator.textContent = "Traitement de l'image...";
+            statusIndicator.className = "processing";
 
-            // Analyse de l'image haute définition prise par l'iPhone
-            html5QrCode.scanFile(imageFile, true)
-                .then(decodedText => {
-                    loadingIndicator.style.display = 'none';
-                    ajouterAuStock(decodedText);
-                    
-                    if (navigator.vibrate) {
-                        navigator.vibrate(200);
-                    }
-                    
-                    // On vide l'input pour pouvoir reprendre une photo immédiatement
-                    fileInput.value = "";
-                })
-                .catch(err => {
-                    loadingIndicator.style.display = 'none';
-                    alert("Aucun code barre trouvé sur cette photo. Essayez d'approcher un peu plus ou d'améliorer l'éclairage.");
-                    fileInput.value = "";
-                });
+            processImage(imageFile);
         });
 
+        function processImage(file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    // --- ÉTAPE 1 : Redimensionnement (Downscaling) ---
+                    // L'iPhone prend une photo énorme. On la réduit pour le navigateur.
+                    const MAX_WIDTH = 1000; // Une largeur de 1000px suffit largement
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    // Dessine l'image redimensionnée sur le canvas
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // --- ÉTAPE 2 : Traitement d'image (Grayscale & Contrast) ---
+                    statusIndicator.textContent = "Nettoyage microscopique du code...";
+                    const imageData = ctx.getImageData(0, 0, width, height);
+                    const data = imageData.data;
+
+                    for (let i = 0; i < data.length; i += 4) {
+                        // Conversion en niveaux de gris (luminosité)
+                        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                        
+                        // Augmentation agressive du contraste (Binarisation soft)
+                        // Si le pixel est plutôt clair, on le rend blanc, si plutôt noir, on le rend noir
+                        const threshold = 128;
+                        const contrasted = avg > threshold ? 255 : 0;
+
+                        data[i]     = contrasted; // R
+                        data[i + 1] = contrasted; // G
+                        data[i + 2] = contrasted; // B
+                        // data[i+3] est l'alpha (transparence), on n'y touche pas
+                    }
+                    ctx.putImageData(imageData, 0, 0);
+
+                    // --- ÉTAPE 3 : Analyse du code ---
+                    statusIndicator.textContent = "Analyse finale...";
+                    
+                    // On convertit le canvas traité en un Blob (fichier virtuel) pour la bibliothèque
+                    canvas.toBlob(function(blob) {
+                        html5QrCode.scanFile(blob, true)
+                            .then(decodedText => {
+                                statusIndicator.style.display = 'none';
+                                ajouterAuStock(decodedText);
+                                if (navigator.vibrate) navigator.vibrate(200);
+                                fileInput.value = ""; // Reset
+                            })
+                            .catch(err => {
+                                statusIndicator.textContent = "Aucun code détecté. Assurez-vous d'avoir pris la photo à ~15cm et bien horizontalement.";
+                                statusIndicator.className = "error";
+                                fileInput.value = ""; // Reset
+                            });
+                    }, 'image/jpeg', 0.9); // JPEG de haute qualité pour l'analyse
+                };
+                img.src = event.target.files[0].result;
+            };
+            reader.readAsDataURL(file);
+        }
+
         function ajouterAuStock(code) {
+            // Nettoyage sommaire si besoin (certains codes contiennent des espaces)
+            code = code.trim();
             if (stock[code]) {
                 stock[code]++;
             } else {
