@@ -178,7 +178,7 @@
           <button class="btn-small btn-green" onclick="ouvrirModalNouveauFournisseur()">+ Ajouter</button>
           <button class="btn-small btn-red" onclick="supprimerFournisseurActuelCommande()">Supprimer</button>
         </div>
-        <div class="muted" id="frs-info-details" style="font-size: 11px;">Email : non configuré | Franco : 0.00 €</div>
+        <div class="muted" id="frs-info-details" style="font-size: 11px;">Email : non configuré | Franco : 0.00 € | Délai : 7j</div>
       </div>
       
       <fieldset id="brouillons-section" style="display:none;">
@@ -235,13 +235,12 @@
       <h2>Analyse de consommation (12 derniers mois)</h2>
       <div class="analyse-toolbar" style="flex-wrap: wrap; gap: 8px;">
         <div>
-          <label style="display:inline-block; font-size:11px;">Couverture :</label>
+          <label style="display:inline-block; font-size:11px;">Stock de sécurité :</label>
           <select id="analyse-couverture" onchange="renderAnalyse()">
-            <option value="1">1 semaine</option>
-            <option value="2" selected>2 semaines</option>
-            <option value="3">3 semaines</option>
-            <option value="4">1 mois</option>
-            <option value="8">2 mois</option>
+            <option value="1">1 semaine extra</option>
+            <option value="2" selected>2 semaines extra</option>
+            <option value="3">3 semaines extra</option>
+            <option value="4">1 mois extra</option>
           </select>
         </div>
         <div>
@@ -310,6 +309,8 @@
     <label>Désignation</label><input type="text" id="new-designation" placeholder="Nom du produit">
     <label>Quantité initiale</label><input type="number" id="new-qte" min="0" value="0">
     <label>Prix d'achat (€ TTC)</label><input type="number" id="new-prix" min="0" step="0.01" value="0">
+    <label>Fournisseur associé</label>
+    <select id="new-fournisseur"></select>
     <label>Contenance</label><input type="text" id="new-contenance" placeholder="ex: carton de 12">
     <label>Seuil critique</label><input type="number" id="new-seuil" min="0" value="0">
     <div class="modal-actions">
@@ -325,6 +326,8 @@
     <p id="adj-info" class="muted"></p>
     <label>Nouvelle quantité</label><input type="number" id="adj-qty" min="0">
     <label>Prix d'achat (€ TTC)</label><input type="number" id="adj-prix" min="0" step="0.01">
+    <label>Fournisseur associé</label>
+    <select id="adj-fournisseur"></select>
     <label>Seuil critique</label><input type="number" id="adj-seuil" min="0">
     <label>Motif de l'ajustement</label><input type="text" id="adj-comment" placeholder="ex: inventaire physique...">
     <div class="modal-actions">
@@ -359,10 +362,11 @@
 
 <div class="modal-overlay" id="modal-nouveau-frs">
   <div class="modal-card">
-    <h3>Nouveau fournisseur</h3>
+    <h3>Fournisseur</h3>
     <label>Nom du fournisseur</label><input type="text" id="new-frs-nom" placeholder="Nom de l'entreprise">
     <label>Email de commande</label><input type="text" id="new-frs-mail" placeholder="email@fournisseur.com">
     <label>Franco de port (€ TTC)</label><input type="number" id="new-frs-franco" min="0" step="0.01" value="0">
+    <label>Délai de livraison habituel (en jours)</label><input type="number" id="new-frs-delai" min="1" value="7" placeholder="ex: 3 pour 3 jours, 7 pour 1 semaine">
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal('modal-nouveau-frs')">Annuler</button>
       <button class="btn-primary" onclick="submitNouveauFournisseurRapide()">Enregistrer</button>
@@ -791,7 +795,7 @@ async function loadAnalyseData() {
 
 function renderAnalyse() {
   const tbody = document.getElementById('analyse-body');
-  const weeksCoverage = Number(document.getElementById('analyse-couverture').value) || 2;
+  const extraWeeksCoverage = Number(document.getElementById('analyse-couverture').value) || 2;
   const coeffSecurite = Number(document.getElementById('analyse-marge').value) || 1.2;
   const chartLimitVal = document.getElementById('chart-limit').value;
   
@@ -800,6 +804,9 @@ function renderAnalyse() {
   const conso12m = analyseConso || {};
   const history = state.historique || [];
   
+  let fournisseursList = [];
+  try { fournisseursList = JSON.parse(state.config.fournisseurs || '[]'); } catch(e){}
+
   const limit30d = new Date();
   limit30d.setDate(limit30d.getDate() - 30);
   
@@ -823,7 +830,14 @@ function renderAnalyse() {
     if (avgWeek30d > avgWeek12m * 1.25 && tot30d > 2) tendance = 'hausse';
     else if (avgWeek30d < avgWeek12m * 0.75 && tot12m > 5) tendance = 'baisse';
 
-    const suggSeuil = Math.ceil((vitesseRetention * weeksCoverage) * coeffSecurite);
+    // Recherche du délai fournisseur
+    const frsInfo = fournisseursList.find(f => f.nom === p.fournisseur);
+    const delaiJours = frsInfo ? Number(frsInfo.delai) || 7 : 7;
+    const delaiSemaines = delaiJours / 7;
+
+    // Calcul du seuil intégrant le délai de livraison + couverture de sécurité
+    const totalWeeksNeeded = delaiSemaines + extraWeeksCoverage;
+    const suggSeuil = Math.ceil((vitesseRetention * totalWeeksNeeded) * coeffSecurite);
     
     const consoJeu = vitesseRetention / 7;
     const joursRestants = consoJeu > 0 ? Math.floor(p.qte / consoJeu) : 999;
@@ -834,16 +848,17 @@ function renderAnalyse() {
       avgWeek: vitesseRetention, 
       suggSeuil, 
       joursRestants, 
-      tendance 
+      tendance,
+      delaiJours
     };
   }).filter(p => p.tot12m > 0 || p.qte > 0).sort((a, b) => a.joursRestants - b.joursRestants);
 
   tbody.innerHTML = list.map(p => {
     let badgeAlert = '';
-    if (p.joursRestants <= 7) {
-      badgeAlert = `<span style="background:#ff3b30; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold;">🚨 Rupture dans ~${p.joursRestants}j</span>`;
+    if (p.joursRestants <= (p.delaiJours)) {
+      badgeAlert = `<span style="background:#ff3b30; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold;">🚨 Commande urgente (${p.delaiJours}j livraison)</span>`;
     } else if (p.qte <= p.suggSeuil) {
-      badgeAlert = `<span style="background:#ff9500; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold;">⚠️ Réappro nécessaire (~${p.joursRestants}j)</span>`;
+      badgeAlert = `<span style="background:#ff9500; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold;">⚠️ À réapprovisionner (~${p.joursRestants}j)</span>`;
     } else {
       badgeAlert = `<span style="color:#34c759; font-size:11px;">✅ Stock suffisant (~${p.joursRestants}j)</span>`;
     }
@@ -855,7 +870,7 @@ function renderAnalyse() {
     return `<tr>
       <td>
         <strong>${escapeHtml(p.designation)}</strong><br>
-        <span class="muted">${p.codeBarre}</span><br>
+        <span class="muted">${p.codeBarre} | ${escapeHtml(p.fournisseur || 'Frs non défini')} (${p.delaiJours}j livr.)</span><br>
         ${badgeAlert}
       </td>
       <td>
@@ -875,7 +890,7 @@ function renderAnalyse() {
     </tr>`;
   }).join('') || '<tr><td colspan="4" class="muted">Aucune donnée d\'analyse disponible</td></tr>';
 
-  // Préparation du filtre pour le graphique
+  // Filtre graphique
   const chartSorted = list.filter(p => p.tot12m > 0).sort((a,b) => b.tot12m - a.tot12m);
   const chartDataList = chartLimitVal === 'all' ? chartSorted : chartSorted.slice(0, Number(chartLimitVal));
   
@@ -977,11 +992,12 @@ async function submitAjust() {
   const qte = Number(document.getElementById('adj-qty').value);
   const prix = Number(document.getElementById('adj-prix').value);
   const seuil = Number(document.getElementById('adj-seuil').value);
+  const fournisseur = document.getElementById('adj-fournisseur').value;
   const commentaire = document.getElementById('adj-comment').value.trim();
   closeModal('modal-ajust');
   setGlobalLoading(true);
   try {
-    const res = await apiPost('adjustProduct', { codeBarre: code, qte, prixAchat: prix, seuil, commentaire });
+    const res = await apiPost('adjustProduct', { codeBarre: code, qte, prixAchat: prix, seuil, fournisseur, commentaire });
     if (res.error) throw new Error(res.error);
     toast('Article ajusté ✔'); await loadData();
   } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
@@ -1057,6 +1073,17 @@ function renderManualSelect() {
   document.getElementById('manual-select').innerHTML = '<option value="">-- choisir un article --</option>' + state.produits.sort((a,b) => (a.designation||'').localeCompare(b.designation||'')).map(p => `<option value="${p.codeBarre}">${escapeHtml(p.designation)} (${p.codeBarre})</option>`).join('');
 }
 
+function populateFournisseursSelects() {
+  let list = [];
+  try { list = JSON.parse(state.config.fournisseurs || '[]'); } catch(e){}
+  const options = '<option value="">-- Aucun / Non défini --</option>' + list.map(f => `<option value="${escapeHtml(f.nom)}">${escapeHtml(f.nom)}</option>`).join('');
+  
+  const newSelect = document.getElementById('new-fournisseur');
+  const adjSelect = document.getElementById('adj-fournisseur');
+  if (newSelect) newSelect.innerHTML = options;
+  if (adjSelect) adjSelect.innerHTML = options;
+}
+
 function renderConfigForm() {
   const c = state.config || {};
   const setVal = (id, val) => { const e = document.getElementById(id); if(e) e.value = val || ''; };
@@ -1072,6 +1099,7 @@ function renderConfigForm() {
       list.map((f, idx) => `<option value="${idx}" ${f.nom === c.fournisseurNom ? 'selected' : ''}>${f.nom}</option>`).join('');
   }
 
+  populateFournisseursSelects();
   updateFrsDetailsUI();
 }
 
@@ -1080,21 +1108,21 @@ function updateFrsDetailsUI() {
   const info = document.getElementById('frs-info-details');
   if (info) {
     info.textContent = c.fournisseurNom ? 
-      `Email : ${c.fournisseurEmail || 'Non renseigné'} | Franco : ${c.fournisseurFranco || 0} € TTC` : 
+      `Email : ${c.fournisseurEmail || 'Non renseigné'} | Franco : ${c.fournisseurFranco || 0} € TTC | Délai : ${c.fournisseurDelai || 7}j` : 
       'Aucun fournisseur actif sélectionné.';
   }
 }
 
 function selectionnerFournisseurCommande(idx) {
   if (idx === "") {
-    saveConfigFields({ fournisseurNom: '', fournisseurEmail: '', fournisseurFranco: 0 });
+    saveConfigFields({ fournisseurNom: '', fournisseurEmail: '', fournisseurFranco: 0, fournisseurDelai: 7 });
     return;
   }
   try {
     let list = JSON.parse(state.config.fournisseurs || '[]');
     const f = list[idx];
     if (f) {
-      saveConfigFields({ fournisseurNom: f.nom, fournisseurEmail: f.email, fournisseurFranco: f.franco });
+      saveConfigFields({ fournisseurNom: f.nom, fournisseurEmail: f.email, fournisseurFranco: f.franco, fournisseurDelai: f.delai || 7 });
     }
   } catch(e){}
 }
@@ -1114,6 +1142,7 @@ function ouvrirModalNouveauFournisseur() {
   document.getElementById('new-frs-nom').value = '';
   document.getElementById('new-frs-mail').value = '';
   document.getElementById('new-frs-franco').value = '0';
+  document.getElementById('new-frs-delai').value = '7';
   showModal('modal-nouveau-frs');
 }
 
@@ -1121,13 +1150,14 @@ async function submitNouveauFournisseurRapide() {
   const nom = document.getElementById('new-frs-nom').value.trim();
   const email = document.getElementById('new-frs-mail').value.trim();
   const franco = Number(document.getElementById('new-frs-franco').value) || 0;
+  const delai = Number(document.getElementById('new-frs-delai').value) || 7;
 
   if (!nom) { toast('Le nom du fournisseur est requis'); return; }
 
   closeModal('modal-nouveau-frs');
   setGlobalLoading(true);
   try {
-    const res = await apiPost('saveConfig', { ...state.config, fournisseurNom: nom, fournisseurEmail: email, fournisseurFranco: franco });
+    const res = await apiPost('saveConfig', { ...state.config, fournisseurNom: nom, fournisseurEmail: email, fournisseurFranco: franco, fournisseurDelai: delai });
     if (res.error) throw new Error(res.error);
     toast('Fournisseur ajouté et sélectionné ✔');
     await loadData();
@@ -1189,6 +1219,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('show'); 
 function openModalNouveau(code) {
   document.getElementById('new-code').value = code || '';
   ['designation','qte','prix','contenance','seuil'].forEach(id => document.getElementById('new-'+id).value = (id==='qte'||id==='prix'||id==='seuil')?0:'');
+  populateFournisseursSelects();
   showModal('modal-nouveau');
 }
 
@@ -1196,7 +1227,15 @@ async function submitNouveau() {
   const codeBarre = document.getElementById('new-code').value.trim(); if (!codeBarre) { toast('Code requis'); return; }
   if (state.produits.find(x => x.codeBarre === codeBarre)) { toast('Code déjà existant'); return; }
   const designation = document.getElementById('new-designation').value.trim(); if (!designation) { toast('Désignation requise'); return; }
-  const data = { codeBarre, designation, qte: Number(document.getElementById('new-qte').value)||0, prixAchat: Number(document.getElementById('new-prix').value)||0, contenance: document.getElementById('new-contenance').value.trim(), seuil: Number(document.getElementById('new-seuil').value)||0 };
+  const data = { 
+    codeBarre, 
+    designation, 
+    qte: Number(document.getElementById('new-qte').value)||0, 
+    prixAchat: Number(document.getElementById('new-prix').value)||0, 
+    fournisseur: document.getElementById('new-fournisseur').value,
+    contenance: document.getElementById('new-contenance').value.trim(), 
+    seuil: Number(document.getElementById('new-seuil').value)||0 
+  };
   closeModal('modal-nouveau'); setGlobalLoading(true);
   try { const res = await apiPost('upsertProduct', data); if (res.error) throw new Error(res.error); toast('Article créé ✔'); await loadData(); }
   catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
@@ -1206,8 +1245,14 @@ function openModalAjust(code) {
   const p = state.produits.find(x => x.codeBarre === code); if (!p) return;
   document.getElementById('modal-ajust').dataset.code = code;
   document.getElementById('adj-info').textContent = (p.designation || code);
-  document.getElementById('adj-qty').value = p.qte; document.getElementById('adj-prix').value = p.prixAchat || 0;
-  document.getElementById('adj-seuil').value = p.seuil || 0; document.getElementById('adj-comment').value = '';
+  document.getElementById('adj-qty').value = p.qte; 
+  document.getElementById('adj-prix').value = p.prixAchat || 0;
+  document.getElementById('adj-seuil').value = p.seuil || 0; 
+  document.getElementById('adj-comment').value = '';
+  
+  populateFournisseursSelects();
+  document.getElementById('adj-fournisseur').value = p.fournisseur || '';
+
   showModal('modal-ajust');
 }
 
