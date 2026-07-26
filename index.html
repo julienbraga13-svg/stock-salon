@@ -52,35 +52,9 @@
   .scanner-section { flex-shrink: 0; display: flex; flex-direction: column; }
   .mode-label { text-align: center; font-weight: 700; font-size: 13px; margin-bottom: 4px; color: #34c759; }
   .scanner-section.mode-sortie .mode-label { color: #ff3b30; }
-  #camera-select {
-    display: none;
-    width: 100%;
-    margin-bottom: 6px;
-    padding: 6px 10px;
-    border-radius: 8px;
-    border: 1px solid #c6c6c8;
-    background: #fff;
-    font-size: 12px;
-    color: #1c1c1e;
-  }
   #video-container {
     width: 100%; height: 22vh; border-radius: 12px; overflow: hidden;
     background-color: #000; margin-bottom: 6px; position: relative;
-  }
- /* ===== Effet Flash Vidéo ===== */
-  #video-flash {
-    position: absolute;
-    inset: 0;
-    background-color: transparent;
-    pointer-events: none; /* Pour ne pas bloquer les clics */
-    z-index: 10;
-  }
-  @keyframes flashAnim {
-    0% { background-color: rgba(255, 255, 255, 0.9); }
-    100% { background-color: transparent; }
-  }
-  .flash-active {
-    animation: flashAnim 0.4s ease-out;
   }
   video { width: 100%; height: 100%; display: block; object-fit: cover; }
   .scan-guide {
@@ -116,7 +90,6 @@
   #stock-search { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #c6c6c8; font-size: 14px; margin-bottom: 8px; }
   .stock-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
   .stock-header-row h2 { margin: 0; }
-  .stock-total-row { display: flex; justify-content: space-between; font-weight: 700; padding: 10px 4px 4px 4px; font-size: 14px; border-top: 1px solid #e5e5ea; margin-top: auto; flex-shrink: 0; color: #007aff; } /* Nouvelle ligne CSS pour le total */
 
   /* Commande view */
   #view-commande .stock-container { overflow-y: auto; }
@@ -191,12 +164,9 @@
   <!-- Scanner -->
   <div class="scanner-section" id="scanner-section">
     <div class="mode-label" id="scanner-mode-label">Mode Entrée</div>
-    <!-- Choix de caméra / objectif -->
-    <select id="camera-select" onchange="switchCamera(this.value)"></select>
     <div id="video-container">
       <video id="video" playsinline autoplay muted></video>
       <div class="scan-guide" id="scan-guide"></div>
-      <div id="video-flash"></div>
     </div>
     <div id="flash-msg"></div>
     <div class="manual-row">
@@ -231,11 +201,6 @@
           <thead><tr><th>Article</th><th>Qté</th><th>Seuil</th><th>Prix</th><th></th></tr></thead>
           <tbody id="stock-body"></tbody>
         </table>
-      </div>
-      <!-- LIGNE AJOUTÉE : Valorisation totale du stock -->
-      <div class="stock-total-row">
-        <span>Valeur du stock affiché :</span>
-        <span id="stock-total-val">0.00 €</span>
       </div>
     </div>
   </div>
@@ -324,12 +289,11 @@
  
 <!-- Nav bar (bas d'écran) -->
 <div class="nav-bar">
-  
   <button class="nav-btn" data-mode="sortie" onclick="switchMode('sortie')"><span class="ic">📤</span>Sortie</button>
   <button class="nav-btn" data-mode="stock" onclick="switchMode('stock')"><span class="ic">📊</span>Stock</button>
   <button class="nav-btn" data-mode="commande" onclick="switchMode('commande')"><span class="ic">🧾</span>Commande</button>
   <button class="nav-btn" data-mode="analyse" onclick="switchMode('analyse')"><span class="ic">📈</span>Analyse</button>
- <button class="nav-btn" data-mode="entree" onclick="switchMode('entree')"><span class="ic">📥</span>Entrée</button>
+  <button class="nav-btn" data-mode="entree" onclick="switchMode('entree')"><span class="ic">📥</span>Entrée</button>
 </div>
 
 <!-- Modales -->
@@ -419,6 +383,27 @@ let currentMode = 'entree';
 let dataLoaded = false;
 let consoChartInstance = null;
 
+// ================== AUDIO (BIP) ==================
+function playBeep() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // Fréquence du bip (800 Hz)
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.15); // Durée du bip : 150ms
+  } catch (e) {
+    console.log("Audio non supporté ou bloqué par le navigateur", e);
+  }
+}
+
 // ================== SCANNER ==================
 let codeReader;
 let scannerRunning = false;
@@ -426,35 +411,8 @@ let candidateCode = null;
 let candidateCount = 0;
 let lastValidatedCode = null;
 let lastValidatedTime = 0;
-let selectedDeviceId = null;
 const flashMsg = document.getElementById('flash-msg');
 
-// Fonction pour jouer un bip sonore clair lors de la détection
-function playBeepSound() {
-  try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, audioCtx.currentTime); // Note A5 (bip aigu)
-    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.15);
-  } catch (e) {
-    console.warn('Bip audio non pris en charge :', e);
-  }
-}
-function triggerVideoFlash() {
-  const flashEl = document.getElementById('video-flash');
-  if (flashEl) {
-    flashEl.classList.remove('flash-active');
-    void flashEl.offsetWidth; // Petite astuce pour forcer le navigateur à relancer l'animation
-    flashEl.classList.add('flash-active');
-  }
-}
 function setupReader() {
   const hints = new Map();
   const formats = [
@@ -468,39 +426,10 @@ function setupReader() {
   codeReader = new ZXing.BrowserMultiFormatReader(hints);
 }
 
-async function updateCameraList() {
-  try {
-    const devices = await codeReader.listVideoInputDevices();
-    const select = document.getElementById('camera-select');
-    if (devices && devices.length > 1) {
-      select.innerHTML = '';
-      devices.forEach((device, i) => {
-        const option = document.createElement('option');
-        option.value = device.deviceId;
-        option.text = device.label || `Caméra ${i + 1}`;
-        if (device.deviceId === selectedDeviceId) option.selected = true;
-        select.appendChild(option);
-      });
-      select.style.display = 'block';
-    }
-  } catch (e) {
-    console.error('Erreur listing des caméras :', e);
-  }
-}
-
-function switchCamera(deviceId) {
-  selectedDeviceId = deviceId;
-  stopScanner();
-  startScanner();
-}
-
 function startScanner() {
   if (scannerRunning) return;
   scannerRunning = true;
-  
-  const constraints = selectedDeviceId ? {
-    video: { deviceId: { exact: selectedDeviceId } }
-  } : {
+  const constraints = {
     video: {
       facingMode: "environment",
       width: { ideal: 1280 },
@@ -530,18 +459,16 @@ function startScanner() {
         lastValidatedTime = currentTime;
         candidateCode = null;
         candidateCount = 0;
-        triggerVideoFlash();
-        playBeepSound(); // Jouer le bip sonore
+
+        playBeep(); // 🔊 Déclenchement du bip sonore ici !
         if (navigator.vibrate) navigator.vibrate(100);
+        
         flashMsg.textContent = "✔ " + rawCode;
         setTimeout(() => { flashMsg.textContent = ""; }, 1000);
 
         handleScannedCode(rawCode);
       }
     }
-  })
-  .then(() => {
-    updateCameraList();
   })
   .catch((err) => {
     console.error("Erreur d'accès à la caméra : ", err);
@@ -560,6 +487,7 @@ function manualSubmit() {
   const val = input.value.trim();
   if (!val) return;
   input.value = '';
+  playBeep(); // 🔊 Bip aussi lors de la validation manuelle
   handleScannedCode(val);
 }
 
@@ -643,7 +571,7 @@ async function loadData() {
     };
 
     dataLoaded = true;
-    renderAll(); // Met à jour l'affichage de la vue active
+    renderAll();
   } catch (err) {
     setGlobalLoading(false);
     dataLoaded = false;
@@ -693,28 +621,16 @@ function renderStock() {
     .filter(p => !filter || p.codeBarre.toLowerCase().includes(filter) || (p.designation || '').toLowerCase().includes(filter))
     .sort((a, b) => (a.designation || '').localeCompare(b.designation || ''));
 
-  let totalValeurStock = 0; // Ajout du calcul du total
-
   tbody.innerHTML = list.map(p => {
     const alert = p.qte <= p.seuil;
-    
-    // Calcul de la valeur
-    totalValeurStock += (p.qte * (p.prixAchat || 0));
-
     return `<tr class="${alert ? 'row-alert' : ''}">
       <td>${escapeHtml(p.designation || '(sans nom)')}<br><span class="muted">${escapeHtml(p.codeBarre)}</span></td>
       <td>${p.qte}</td>
       <td>${p.seuil}</td>
-      <td>${p.prixAchat !== undefined ? p.prixAchat.toFixed(2) : '0.00'} €</td>
+      <td>${p.prixAchat.toFixed(2)} €</td>
       <td><button class="btn-small" onclick="openModalAjust('${p.codeBarre}')">Ajuster</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" class="muted">Aucun article</td></tr>';
-
-  // Mise à jour de l'affichage du total en bas
-  const totalEl = document.getElementById('stock-total-val');
-  if (totalEl) {
-    totalEl.textContent = totalValeurStock.toFixed(2) + ' €';
-  }
 }
 
 function renderHistorique(mode) {
@@ -767,7 +683,6 @@ function renderManualSelect() {
 
 function renderConfigForm() {
   const c = (state && state.config) ? state.config : {};
-  
   const setVal = (id, val) => {
     const el = document.getElementById(id);
     if (el) el.value = val || '';
@@ -894,115 +809,12 @@ function openModalAjust(code) {
   showModal('modal-ajust');
 }
 
-async function submitAjust() {
-  const code = document.getElementById('modal-ajust').dataset.code;
-  const newQte = Number(document.getElementById('adj-qty').value);
-  const newPrix = Number(document.getElementById('adj-prix').value);
-  const newSeuil = Number(document.getElementById('adj-seuil').value);
-  const commentaire = document.getElementById('adj-comment').value.trim();
-  
-  if (isNaN(newQte) || newQte < 0) { toast('Quantité invalide'); return; }
-  if (isNaN(newPrix) || newPrix < 0) { toast('Prix invalide'); return; }
-  if (isNaN(newSeuil) || newSeuil < 0) { toast('Seuil invalide'); return; }
-
-  closeModal('modal-ajust');
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('adjustProduct', { codeBarre: code, qte: newQte, prixAchat: newPrix, seuil: newSeuil, commentaire });
-    if (res.error) { toast('Erreur : ' + res.error); return; }
-    toast('Article mis à jour ✔');
-    await loadData();
-  } catch (err) {
-    toast('Erreur réseau : ' + err.message);
-  } finally {
-    setGlobalLoading(false);
-  }
-}
-
-function submitReglages() {
-  const configData = {
-    nom: document.getElementById('cfg-nom').value.trim(),
-    representant: document.getElementById('cfg-representant').value.trim(),
-    siret: document.getElementById('cfg-siret').value.trim(),
-    adresse: document.getElementById('cfg-adresse').value.trim(),
-    mail: document.getElementById('cfg-mail').value.trim(),
-    tel: document.getElementById('cfg-tel').value.trim(),
-    fournisseurNom: document.getElementById('cfg-frs-nom').value.trim(),
-    fournisseurEmail: document.getElementById('cfg-frs-mail').value.trim()
-  };
-  closeModal('modal-reglages');
-  setGlobalLoading(true);
-  apiPost('saveConfig', configData).then(res => {
-    setGlobalLoading(false);
-    if (res.error) { toast('Erreur : ' + res.error); return; }
-    state.config = configData;
-    renderConfigForm();
-    toast('Réglages enregistrés ✔');
-  }).catch(err => {
-    setGlobalLoading(false);
-    toast('Erreur réseau : ' + err.message);
-  });
-}
-
-async function envoyerCommande() {
-  if (panier.length === 0) { toast('Panier vide'); return; }
-  if (!state.config.fournisseurEmail) { toast('Email fournisseur non configuré dans les réglages'); return; }
-  
-  if (!confirm('Envoyer la commande par email au fournisseur ' + state.config.fournisseurNom + ' ?')) return;
-
-  document.getElementById('send-btn').disabled = true;
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('sendOrder', { panier, config: state.config });
-    if (res.error) { toast('Erreur : ' + res.error); return; }
-    toast('Commande envoyée avec succès par email ! 📧');
-    panier = [];
-    renderPanier();
-  } catch (err) {
-    toast('Erreur réseau : ' + err.message);
-  } finally {
-    document.getElementById('send-btn').disabled = false;
-    setGlobalLoading(false);
-  }
-}
-
-function renderAnalyse() {
-  const couvertureWeeks = Number(document.getElementById('analyse-couverture').value) || 2;
-  const tbody = document.getElementById('analyse-body');
-  
-  const stats = state.produits.map(p => {
-    const sortiesProduit = state.historique.filter(h => h.codeBarre === p.codeBarre && h.type === 'Sortie');
-    const totalConso12m = sortiesProduit.reduce((acc, curr) => acc + Number(curr.quantite), 0);
-    const moySemaine = (totalConso12m / 52).toFixed(1);
-    const seuilSuggere = Math.ceil(Number(moySemaine) * couvertureWeeks);
-
-    return { ...p, totalConso12m, moySemaine, seuilSuggere };
-  }).sort((a, b) => b.totalConso12m - a.totalConso12m);
-
-  tbody.innerHTML = stats.map(p => `<tr>
-    <td>${escapeHtml(p.designation || p.codeBarre)}</td>
-    <td>${p.totalConso12m}</td>
-    <td>${p.moySemaine}</td>
-    <td>${p.seuil}</td>
-    <td><strong>${p.seuilSuggere}</strong></td>
-    <td><button class="btn-small btn-primary" onclick="appliquerSeuilSuggere('${p.codeBarre}', ${p.seuilSuggere})">Appliquer</button></td>
-  </tr>`).join('') || '<tr><td colspan="6" class="muted">Aucune donnée d\'analyse</td></tr>';
-}
-
-async function appliquerSeuilSuggere(code, nouveauSeuil) {
-  const p = findProduit(code);
-  if (!p) return;
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('adjustProduct', { codeBarre: code, qte: p.qte, prixAchat: p.prixAchat, seuil: nouveauSeuil, commentaire: 'Mise à jour seuil via analyse' });
-    if (res.error) { toast('Erreur : ' + res.error); return; }
-    toast('Seuil mis à jour ✔');
-    await loadData();
-  } catch (err) {
-    toast('Erreur réseau : ' + err.message);
-  } finally {
-    setGlobalLoading(false);
-  }
+// Fonctions utilitaires diverses
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
 }
 
 function setGlobalLoading(show) {
@@ -1011,42 +823,22 @@ function setGlobalLoading(show) {
   else bar.classList.remove('show');
 }
 
-function toast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr;
+  if (isNaN(d)) return dateStr;
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-function escapeHtml(str) {
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-window.addEventListener('load', () => {
+// Initialisation au chargement de la page
+window.addEventListener('DOMContentLoaded', () => {
   setupReader();
   loadData();
-  switchMode('sortie'); // <--- Démarre directement en sortie
-});
-
-// Rafraîchissement automatique toutes les 30 secondes en arrière-plan
-setInterval(() => {
-  if (document.visibilityState === 'visible') {
-    loadData();
-  }
-}, 30000);
-
-// Rafraîchissement immédiat si l'utilisateur revient sur l'onglet/l'application mobile
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    loadData();
-  }
+  switchMode('entree');
 });
 </script>
 </body>
