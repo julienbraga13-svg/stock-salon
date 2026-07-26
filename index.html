@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Douchette iOS - QuaggaJS</title>
+    <title>Douchette iOS - Capture Native</title>
     
-    <!-- Import de QuaggaJS (Spécialiste des codes-barres 1D) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <!-- On reprend html5-qrcode qui est excellent pour lire des images fixes -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
     
     <style>
         body {
@@ -21,30 +21,6 @@
             text-align: center;
             margin-top: 0;
         }
-        
-        /* Conteneur vidéo Quagga */
-        #interactive {
-            width: 100%;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            background-color: #000;
-            margin-bottom: 20px;
-            position: relative;
-        }
-        
-        /* Force la vidéo générée par Quagga à s'adapter à l'écran */
-        #interactive video {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-        
-        /* Cache le canvas de dessin de Quagga pour garder une interface propre */
-        #interactive canvas {
-            display: none;
-        }
-
         .btn {
             display: block;
             width: 100%;
@@ -56,12 +32,12 @@
             color: white;
             background-color: #007aff;
             text-align: center;
-            margin-bottom: 10px;
+            margin-bottom: 20px;
             cursor: pointer;
             box-sizing: border-box;
         }
-        .btn-stop {
-            background-color: #ff3b30;
+        /* On cache l'input fichier classique */
+        #file-input {
             display: none;
         }
         .stock-container {
@@ -93,17 +69,26 @@
             font-size: 14px;
             font-weight: bold;
         }
+        #loading {
+            text-align: center;
+            display: none;
+            color: #007aff;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 <body>
 
-    <h1>📦 Gestion de Stock (Quagga)</h1>
+    <h1>📦 Gestion de Stock (Mode Photo)</h1>
     
-    <button id="btn-start" class="btn">Démarrer la douchette</button>
-    <button id="btn-stop" class="btn btn-stop">Arrêter la caméra</button>
+    <!-- Bouton qui va déclencher l'appareil photo natif -->
+    <label for="file-input" class="btn">📸 Scanner un produit</label>
+    
+    <!-- L'attribut 'capture="environment"' force l'ouverture de l'appareil photo arrière sur iOS -->
+    <input type="file" id="file-input" accept="image/*" capture="environment">
 
-    <!-- Zone vidéo pour Quagga -->
-    <div id="interactive" class="viewport"></div>
+    <div id="loading">Analyse en cours...</div>
 
     <div class="stock-container">
         <h2>Inventaire en cours</h2>
@@ -120,90 +105,53 @@
     </div>
 
     <script>
-        let isScanning = false;
         let stock = {}; 
-        let lastScannedCode = null;
-        let lastScanTime = 0;
-
-        const btnStart = document.getElementById('btn-start');
-        const btnStop = document.getElementById('btn-stop');
+        const fileInput = document.getElementById('file-input');
         const stockBody = document.getElementById('stock-body');
+        const loadingIndicator = document.getElementById('loading');
 
-        function initScanner() {
-            Quagga.init({
-                inputStream : {
-                    name : "Live",
-                    type : "LiveStream",
-                    target: document.querySelector('#interactive'), 
-                    constraints: {
-                        facingMode: "environment" // Caméra arrière
-                    },
-                    area: { // Restreint la zone d'analyse au centre pour plus de rapidité
-                        top: "20%",
-                        right: "10%",
-                        left: "10%",
-                        bottom: "20%"
+        // On instancie la bibliothèque pour lire des fichiers
+        const html5QrCode = new Html5Qrcode("loading"); // On utilise la div loading comme point d'ancrage virtuel
+
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length == 0) {
+                return;
+            }
+
+            const imageFile = e.target.files[0];
+            loadingIndicator.style.display = 'block';
+
+            // Analyse de l'image haute définition prise par l'iPhone
+            html5QrCode.scanFile(imageFile, true)
+                .then(decodedText => {
+                    loadingIndicator.style.display = 'none';
+                    ajouterAuStock(decodedText);
+                    
+                    if (navigator.vibrate) {
+                        navigator.vibrate(200);
                     }
-                },
-                decoder : {
-                    // Liste des codes-barres les plus courants (Europe et US)
-                    readers : [
-                        "ean_reader",      // Code barre classique supermarché (EAN 13)
-                        "ean_8_reader",    // Petit code barre (EAN 8)
-                        "code_128_reader", // Code barre logistique / colis
-                        "upc_reader"       // Code barre américain
-                    ]
-                }
-            }, function(err) {
-                if (err) {
-                    alert("Erreur Quagga : " + err);
-                    return;
-                }
-                Quagga.start();
-                isScanning = true;
-                btnStart.style.display = 'none';
-                btnStop.style.display = 'block';
-            });
-        }
+                    
+                    // On vide l'input pour pouvoir reprendre une photo immédiatement
+                    fileInput.value = "";
+                })
+                .catch(err => {
+                    loadingIndicator.style.display = 'none';
+                    alert("Aucun code barre trouvé sur cette photo. Essayez d'approcher un peu plus ou d'améliorer l'éclairage.");
+                    fileInput.value = "";
+                });
+        });
 
-        function stopScanner() {
-            if (isScanning) {
-                Quagga.stop();
-                isScanning = false;
-                btnStart.style.display = 'block';
-                btnStop.style.display = 'none';
-            }
-        }
-
-        // Événement déclenché à chaque détection réussie
-        Quagga.onDetected(function(result) {
-            const code = result.codeResult.code;
-            const currentTime = new Date().getTime();
-            
-            // Anti-rebond (1.5 secondes)
-            if (code === lastScannedCode && (currentTime - lastScanTime) < 1500) {
-                return; 
-            }
-
-            lastScannedCode = code;
-            lastScanTime = currentTime;
-
+        function ajouterAuStock(code) {
             if (stock[code]) {
                 stock[code]++;
             } else {
                 stock[code] = 1;
             }
-
-            if (navigator.vibrate) {
-                navigator.vibrate(100);
-            }
-
             updateStockUI();
-        });
+        }
 
         function updateStockUI() {
             stockBody.innerHTML = ''; 
-            
             for (const [code, quantity] of Object.entries(stock)) {
                 const tr = document.createElement('tr');
                 const tdCode = document.createElement('td');
@@ -215,9 +163,6 @@
                 stockBody.appendChild(tr);
             }
         }
-
-        btnStart.addEventListener('click', initScanner);
-        btnStop.addEventListener('click', stopScanner);
     </script>
 </body>
 </html>
