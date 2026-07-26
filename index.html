@@ -907,7 +907,9 @@ function formatDate(iso) {
 // ================== INIT ==================
 window.addEventListener('DOMContentLoaded', () => {
   setupReader();
-  loadData();
+  loadData().then(() => {
+    switchMode('sortie');
+  });
 });
 </script>
 </body>
