@@ -547,7 +547,7 @@ async function loadData() {
     };
 
     dataLoaded = true;
-    renderAll();
+    renderAll(); // Met à jour l'affichage de la vue active
   } catch (err) {
     setGlobalLoading(false);
     dataLoaded = false;
@@ -924,7 +924,20 @@ function escapeHtml(str) {
 window.addEventListener('load', () => {
   setupReader();
   loadData();
-  switchMode('entree');
+  switchMode('sortie'); // <--- Démarre directement en sortie
+});
+ // Rafraîchissement automatique toutes les 30 secondes en arrière-plan
+setInterval(() => {
+  if (document.visibilityState === 'visible') {
+    loadData();
+  }
+}, 30000);
+
+// Rafraîchissement immédiat si l'utilisateur revient sur l'onglet/l'application mobile
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    loadData();
+  }
 });
 </script>
 </body>
