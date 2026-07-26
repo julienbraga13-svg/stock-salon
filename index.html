@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Douchette iOS - Ultra Stable</title>
+    <title>Douchette iOS - Ultra Rapide</title>
     
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     
@@ -89,7 +89,6 @@
             font-size: 14px;
             font-weight: bold;
         }
-        /* Notification visuelle flash lors d'un scan validé */
         #flash-msg {
             text-align: center;
             font-weight: bold;
@@ -101,7 +100,7 @@
 </head>
 <body>
 
-    <h1>📦 Douchette iOS Stable</h1>
+    <h1>📦 Douchette iOS Turbo</h1>
     
     <button id="btn-start" class="btn">Démarrer la douchette</button>
     <button id="btn-stop" class="btn btn-stop">Arrêter la caméra</button>
@@ -132,11 +131,8 @@
         let isScanning = false;
         let stock = {}; 
         
-        // Variables pour la double validation anti-erreur
         let candidateCode = null;
         let candidateCount = 0;
-        
-        // Anti-rebond global pour éviter de valider 50 fois le même produit si on le laisse sous les yeux
         let lastValidatedCode = null;
         let lastValidatedTime = 0;
 
@@ -147,43 +143,59 @@
         const flashMsg = document.getElementById('flash-msg');
 
         function initScanner() {
-            codeReader = new ZXing.BrowserMultiFormatReader();
+            // Utilisation d'un lecteur configuré spécifiquement pour les formats 1D majeurs (vitesse accrue)
+            const hints = new Map();
+            const formats = [
+                ZXing.BarcodeFormat.EAN_13,
+                ZXing.BarcodeFormat.EAN_8,
+                ZXing.BarcodeFormat.CODE_128,
+                ZXing.BarcodeFormat.CODE_39,
+                ZXing.BarcodeFormat.UPC_A
+            ];
+            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+
+            codeReader = new ZXing.BrowserMultiFormatReader(hints);
             
-            codeReader.decodeFromVideoDevice(undefined, 'video', (result, err) => {
+            // Contraintes avancées pour forcer l'autofocus continu et une bonne résolution fluide sur iOS
+            const constraints = {
+                video: {
+                    facingMode: "environment",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    advanced: [{ focusMode: "continuous" }]
+                }
+            };
+
+            codeReader.decodeFromConstraints(constraints, 'video', (result, err) => {
                 if (result) {
                     const rawCode = result.getText().trim();
                     const currentTime = new Date().getTime();
 
-                    // 1. Protection anti-rebond sur un produit déjà validé récemment (2 secondes)
-                    if (rawCode === lastValidatedCode && (currentTime - lastValidatedTime) < 2000) {
+                    if (rawCode === lastValidatedCode && (currentTime - lastValidatedTime) < 1500) {
                         return;
                     }
 
-                    // 2. Logique de double validation : 
-                    // Il faut que le moteur lise EXACTEMENT le même code 2 fois d'affilée
                     if (rawCode === candidateCode) {
                         candidateCount++;
                     } else {
                         candidateCode = rawCode;
-                        candidateCount = 1; // Premier aperçu de ce code
+                        candidateCount = 1; 
                     }
 
-                    // Si le code a été lu 2 fois de suite sans erreur au milieu, on valide !
-                    if (candidateCount >= 2) {
+                    // On réduit à 1 seule validation si le décodage est confiant, ou garde 2 pour la sécurité. 
+                    // Ici avec les hints ciblés, le moteur est plus sûr de lui.
+                    if (candidateCount >= 1) { 
                         lastValidatedCode = rawCode;
                         lastValidatedTime = currentTime;
                         
-                        // Reset des candidats
                         candidateCode = null;
                         candidateCount = 0;
 
-                        // Ajout au stock
                         ajouterAuStock(rawCode);
 
-                        // Feedback haptique et visuel
                         if (navigator.vibrate) navigator.vibrate(100);
-                        flashMsg.textContent = "✔ Validé : " + rawCode;
-                        setTimeout(() => { flashMsg.textContent = ""; }, 1500);
+                        flashMsg.textContent = "✔ " + rawCode;
+                        setTimeout(() => { flashMsg.textContent = ""; }, 1000);
                     }
                 }
             })
