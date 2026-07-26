@@ -52,6 +52,17 @@
   .scanner-section { flex-shrink: 0; display: flex; flex-direction: column; }
   .mode-label { text-align: center; font-weight: 700; font-size: 13px; margin-bottom: 4px; color: #34c759; }
   .scanner-section.mode-sortie .mode-label { color: #ff3b30; }
+  #camera-select {
+    display: none;
+    width: 100%;
+    margin-bottom: 6px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #c6c6c8;
+    background: #fff;
+    font-size: 12px;
+    color: #1c1c1e;
+  }
   #video-container {
     width: 100%; height: 22vh; border-radius: 12px; overflow: hidden;
     background-color: #000; margin-bottom: 6px; position: relative;
@@ -164,6 +175,8 @@
   <!-- Scanner -->
   <div class="scanner-section" id="scanner-section">
     <div class="mode-label" id="scanner-mode-label">Mode Entrée</div>
+    <!-- Choix de caméra / objectif -->
+    <select id="camera-select" onchange="switchCamera(this.value)"></select>
     <div id="video-container">
       <video id="video" playsinline autoplay muted></video>
       <div class="scan-guide" id="scan-guide"></div>
@@ -391,7 +404,27 @@ let candidateCode = null;
 let candidateCount = 0;
 let lastValidatedCode = null;
 let lastValidatedTime = 0;
+let selectedDeviceId = null;
 const flashMsg = document.getElementById('flash-msg');
+
+// Fonction pour jouer un bip sonore clair lors de la détection
+function playBeepSound() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime); // Note A5 (bip aigu)
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.15);
+  } catch (e) {
+    console.warn('Bip audio non pris en charge :', e);
+  }
+}
 
 function setupReader() {
   const hints = new Map();
@@ -406,10 +439,39 @@ function setupReader() {
   codeReader = new ZXing.BrowserMultiFormatReader(hints);
 }
 
+async function updateCameraList() {
+  try {
+    const devices = await codeReader.listVideoInputDevices();
+    const select = document.getElementById('camera-select');
+    if (devices && devices.length > 1) {
+      select.innerHTML = '';
+      devices.forEach((device, i) => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.text = device.label || `Caméra ${i + 1}`;
+        if (device.deviceId === selectedDeviceId) option.selected = true;
+        select.appendChild(option);
+      });
+      select.style.display = 'block';
+    }
+  } catch (e) {
+    console.error('Erreur listing des caméras :', e);
+  }
+}
+
+function switchCamera(deviceId) {
+  selectedDeviceId = deviceId;
+  stopScanner();
+  startScanner();
+}
+
 function startScanner() {
   if (scannerRunning) return;
   scannerRunning = true;
-  const constraints = {
+  
+  const constraints = selectedDeviceId ? {
+    video: { deviceId: { exact: selectedDeviceId } }
+  } : {
     video: {
       facingMode: "environment",
       width: { ideal: 1280 },
@@ -440,6 +502,7 @@ function startScanner() {
         candidateCode = null;
         candidateCount = 0;
 
+        playBeepSound(); // Jouer le bip sonore
         if (navigator.vibrate) navigator.vibrate(100);
         flashMsg.textContent = "✔ " + rawCode;
         setTimeout(() => { flashMsg.textContent = ""; }, 1000);
@@ -447,6 +510,9 @@ function startScanner() {
         handleScannedCode(rawCode);
       }
     }
+  })
+  .then(() => {
+    updateCameraList();
   })
   .catch((err) => {
     console.error("Erreur d'accès à la caméra : ", err);
@@ -927,7 +993,8 @@ window.addEventListener('load', () => {
   loadData();
   switchMode('sortie'); // <--- Démarre directement en sortie
 });
- // Rafraîchissement automatique toutes les 30 secondes en arrière-plan
+
+// Rafraîchissement automatique toutes les 30 secondes en arrière-plan
 setInterval(() => {
   if (document.visibilityState === 'visible') {
     loadData();
