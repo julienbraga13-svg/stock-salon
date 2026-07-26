@@ -61,7 +61,9 @@
   .btn-secondary { background: #e5e5ea; color: #1c1c1e; padding: 10px; border-radius: 9px; border: none; font-weight: 600; font-size: 14px; flex: 1; }
 
   /* Stock & Summary */
-  #stock-search { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #c6c6c8; font-size: 14px; margin-bottom: 8px; }
+  .stock-controls-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .stock-controls-row input { flex: 1; margin-bottom: 0; }
+  .stock-controls-row select { width: auto; font-size: 12px; padding: 7px 6px; }
   .stock-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
   .stock-summary { display: flex; justify-content: space-between; background: #f2f2f7; border: 1px solid #e5e5ea; padding: 8px 10px; border-radius: 8px; font-size: 13px; font-weight: 700; color: #1c1c1e; margin-bottom: 8px; }
   
@@ -150,7 +152,16 @@
         <h2>Stock global</h2>
         <button class="btn-small btn-green" onclick="openModalNouveau(null)">+ Nouvel article</button>
       </div>
-      <input type="text" id="stock-search" placeholder="Rechercher (nom ou code)..." oninput="renderStock()">
+      <div class="stock-controls-row">
+        <input type="text" id="stock-search" placeholder="Rechercher (nom ou code)..." oninput="renderStock()">
+        <select id="stock-limit" onchange="renderStock()">
+          <option value="10">10 articles</option>
+          <option value="25" selected>25 articles</option>
+          <option value="50">50 articles</option>
+          <option value="100">100 articles</option>
+          <option value="all">Voir tout</option>
+        </select>
+      </div>
       <div class="stock-summary" id="stock-summary">
         <span>Quantité totale : <span id="tot-qty">0</span></span>
         <span>Valeur : <span id="tot-val">0.00 € TTC</span></span>
@@ -327,18 +338,7 @@
 
 <div class="modal-overlay" id="modal-reglages">
   <div class="modal-card">
-    <h3>Réglages fournisseurs & commande</h3>
-    <fieldset>
-      <legend>Gestion des Fournisseurs</legend>
-      <label>Choisir un fournisseur</label>
-      <select id="cfg-select-frs" onchange="chargerFournisseurSelectionne()">
-        <option value="">-- Nouveau fournisseur --</option>
-      </select>
-      <label style="margin-top:6px;">Nom du fournisseur</label><input type="text" id="cfg-frs-nom">
-      <label>Email</label><input type="text" id="cfg-frs-mail">
-      <label>Franco de port (€ TTC)</label><input type="number" id="cfg-frs-franco" min="0" step="0.01">
-      <button class="btn-small btn-red" style="margin-top:6px;" onclick="supprimerFournisseurActuel()">Supprimer ce fournisseur</button>
-    </fieldset>
+    <h3>Réglages commande</h3>
     <fieldset>
       <legend>Mes coordonnées (entête)</legend>
       <label>Nom entreprise</label><input type="text" id="cfg-nom">
@@ -530,9 +530,6 @@ async function handleScannedCode(code) {
     p.qte = res.newQte;
     toast((type === 'Entrée' ? '+1 ' : '-1 ') + (p.designation || code) + ' → ' + res.newQte);
     
-    // Mise à jour locale immédiate (pas de rechargement réseau complet) :
-    // on ajoute la ligne d'historique renvoyée par le serveur et on ne redessine
-    // que les vues concernées, au lieu de tout recharger + tout re-rendre.
     state.historique.unshift({
       date: res.date, type, codeBarre: code, designation: p.designation,
       quantite: 1, qteApres: res.newQte, commentaire: '', id: res.id
@@ -544,31 +541,6 @@ async function handleScannedCode(code) {
     toast('Erreur : ' + err.message); 
   } finally { 
     setGlobalLoading(false); 
-  }
-}
-
-async function supprimerFournisseurActuel() {
-  const nomFrs = document.getElementById('cfg-frs-nom').value.trim();
-  if (!nomFrs) {
-    toast("Aucun fournisseur sélectionné ou nom vide");
-    return;
-  }
-  if (!confirm(`Voulez-vous vraiment supprimer le fournisseur "${nomFrs}" ?`)) return;
-
-  setGlobalLoading(true);
-  try {
-    const res = await apiPost('deleteFournisseur', { nom: nomFrs });
-    if (res.error) throw new Error(res.error);
-    
-    toast('Fournisseur supprimé ✔');
-    document.getElementById('cfg-frs-nom').value = '';
-    document.getElementById('cfg-frs-mail').value = '';
-    document.getElementById('cfg-frs-franco').value = '';
-    await loadData();
-  } catch (e) {
-    toast('Erreur : ' + e.message);
-  } finally {
-    setGlobalLoading(false);
   }
 }
 
@@ -601,7 +573,6 @@ async function validerQuantiteReception() {
         renderCommandesReceptionList();
       }, 1500);
     } else if (res.newQte !== undefined) {
-      // Mise à jour locale du stock concerné, sans rechargement réseau complet
       const p = state.produits.find(x => x.codeBarre === String(dernierArticleScanneCode));
       if (p) p.qte = res.newQte;
       renderStock();
@@ -647,18 +618,16 @@ async function loadData(silent = false) {
   }
 }
 
-// Gestion du rafraîchissement périodique intelligent (toutes les 20s si d'autres personnes scannent en même temps)
 function startAutoRefresh() {
   if (refreshInterval) clearInterval(refreshInterval);
   refreshInterval = setInterval(() => {
-    if (document.hidden) return; // page en arrière-plan : on ne charge pas pour rien
-    loadData(true); // Chargement silencieux en arrière-plan
+    if (document.hidden) return;
+    loadData(true);
   }, 20000);
 }
 
 // ================== NAVIGATION & MODES ==================
 function switchMode(mode) {
-  // Si la fenêtre de réception est ouverte et qu'on change d'onglet, on la referme proprement
   if (document.getElementById('modal-reception-scan').classList.contains('show')) closeReceptionModal();
 
   currentMode = mode;
@@ -713,7 +682,6 @@ function renderCommandesReceptionList() {
     </div>`;
   }).join('');
 
-  // Si la fenêtre de réception est ouverte, on garde son tableau à jour (ex: après un scan ailleurs)
   if (commandeEnCoursSelectionnee && document.getElementById('modal-reception-scan').classList.contains('show')) {
     renderReceptionTable();
   }
@@ -726,7 +694,6 @@ function selectionnerCommandeReception(id) {
   openReceptionModal();
 }
 
-// Ouvre la fenêtre de réception : y déplace le scanner partagé et l'active
 function openReceptionModal() {
   if (!commandeEnCoursSelectionnee) return;
   document.getElementById('rec-modal-id').textContent = commandeEnCoursSelectionnee.id;
@@ -743,7 +710,6 @@ function openReceptionModal() {
   showModal('modal-reception-scan');
 }
 
-// Ferme la fenêtre : arrête le scanner et le replace à son emplacement d'origine dans la page
 function closeReceptionModal() {
   stopScanner();
   const sc = document.getElementById('scanner-section');
@@ -773,6 +739,8 @@ function renderReceptionTable() {
 function renderStock() {
   const tbody = document.getElementById('stock-body');
   const filter = document.getElementById('stock-search').value.trim().toLowerCase();
+  const limitVal = document.getElementById('stock-limit').value;
+  
   let totalItems = 0, totalValue = 0;
 
   const codesCommandes = new Set();
@@ -784,11 +752,19 @@ function renderStock() {
     });
   });
 
-  const list = state.produits.filter(p => !filter || p.codeBarre.toLowerCase().includes(filter) || (p.designation || '').toLowerCase().includes(filter)).sort((a,b) => (a.designation||'').localeCompare(b.designation||''));
+  const fullList = state.produits.filter(p => !filter || p.codeBarre.toLowerCase().includes(filter) || (p.designation || '').toLowerCase().includes(filter)).sort((a,b) => (a.designation||'').localeCompare(b.designation||''));
 
-  tbody.innerHTML = list.map(p => {
+  // Calcul global de la valeur/quantité du stock filtré
+  fullList.forEach(p => {
+    totalItems += p.qte;
+    totalValue += (p.qte * p.prixAchat);
+  });
+
+  // Découpage du nombre de lignes selon le sélecteur
+  const listToDisplay = limitVal === 'all' ? fullList : fullList.slice(0, Number(limitVal));
+
+  tbody.innerHTML = listToDisplay.map(p => {
     const v = p.qte * p.prixAchat;
-    totalItems += p.qte; totalValue += v;
     const estcommande = codesCommandes.has(String(p.codeBarre));
     
     return `<tr class="${p.qte <= p.seuil ? 'row-alert' : ''}">
@@ -802,11 +778,11 @@ function renderStock() {
     </tr>`;
   }).join('') || '<tr><td colspan="5" class="muted">Aucun article</td></tr>';
 
-  document.getElementById('tot-qty').textContent = totalItems;
+  document.getElementById('tot-qty').textContent = `${totalItems} (${fullList.length} fiches)`;
   document.getElementById('tot-val').textContent = totalValue.toFixed(2) + ' € TTC';
 }
 
-let analyseConso = null; // cache de l'agrégat de consommation (rempli à l'ouverture de l'onglet)
+let analyseConso = null;
 
 async function loadAnalyseData() {
   const tbody = document.getElementById('analyse-body');
@@ -822,13 +798,9 @@ async function loadAnalyseData() {
   renderAnalyse();
 }
 
-// ================== VUE ANALYSE OPTIMISÉE ==================
-// ================== VUE ANALYSE OPTIMISÉE AVEC MARGE RÉGLABLE ==================
 function renderAnalyse() {
   const tbody = document.getElementById('analyse-body');
   const weeksCoverage = Number(document.getElementById('analyse-couverture').value) || 2;
-  
-  // Récupération dynamique du coefficient de sécurité réglé par l'utilisateur
   const coeffSecurite = Number(document.getElementById('analyse-marge').value) || 1.2;
   
   if (!analyseConso) { loadAnalyseData(); return; }
@@ -836,7 +808,6 @@ function renderAnalyse() {
   const conso12m = analyseConso || {};
   const history = state.historique || [];
   
-  // Calcul de la consommation sur les 30 derniers jours (4.28 semaines)
   const limit30d = new Date();
   limit30d.setDate(limit30d.getDate() - 30);
   
@@ -854,18 +825,14 @@ function renderAnalyse() {
     const avgWeek12m = tot12m / 52;
     const avgWeek30d = tot30d / 4.28;
     
-    // Prise en compte de la vitesse la plus forte (pour couvrir les pics)
     const vitesseRetention = Math.max(avgWeek12m, avgWeek30d);
     
-    // Indication de tendance
     let tendance = 'stable';
     if (avgWeek30d > avgWeek12m * 1.25 && tot30d > 2) tendance = 'hausse';
     else if (avgWeek30d < avgWeek12m * 0.75 && tot12m > 5) tendance = 'baisse';
 
-    // Application du coefficient de sécurité choisi
     const suggSeuil = Math.ceil((vitesseRetention * weeksCoverage) * coeffSecurite);
     
-    // Estimation des jours restants avant rupture
     const consoJeu = vitesseRetention / 7;
     const joursRestants = consoJeu > 0 ? Math.floor(p.qte / consoJeu) : 999;
 
@@ -916,7 +883,7 @@ function renderAnalyse() {
     </tr>`;
   }).join('') || '<tr><td colspan="4" class="muted">Aucune donnée d\'analyse disponible</td></tr>';
 
-  renderChart(list.filter(p => p.tot12m > 0).slice(0, 5));
+  renderChart(list.filter(p => p.tot12m > 0).sort((a,b) => b.tot12m - a.tot12m).slice(0, 5));
 }
 
 function renderChart(topList) {
@@ -925,11 +892,12 @@ function renderChart(topList) {
   wrap.style.display = 'block';
   document.getElementById('conso-chart-title').textContent = "Top 5 Consommation (12 derniers mois)";
   if (consoChartInstance) consoChartInstance.destroy();
+  
   consoChartInstance = new Chart(document.getElementById('conso-chart'), {
     type: 'bar',
     data: {
-      labels: topList.map(p => (p.designation || p.codeBarre).substring(0,10)),
-      datasets: [{ label: 'Unités sorties', data: topList.map(p => p.total12m), backgroundColor: '#5856d6', borderRadius: 4 }]
+      labels: topList.map(p => (p.designation || p.codeBarre).substring(0,12)),
+      datasets: [{ label: 'Unités sorties', data: topList.map(p => p.tot12m), backgroundColor: '#5856d6', borderRadius: 4 }]
     },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
   });
@@ -1025,11 +993,10 @@ async function submitAjust() {
 
 async function submitReglages() {
   const cfg = {
+    ...state.config,
     nom: document.getElementById('cfg-nom').value, representant: document.getElementById('cfg-representant').value,
     siret: document.getElementById('cfg-siret').value, adresse: document.getElementById('cfg-adresse').value,
-    mail: document.getElementById('cfg-mail').value, tel: document.getElementById('cfg-tel').value,
-    fournisseurNom: document.getElementById('cfg-frs-nom').value, fournisseurEmail: document.getElementById('cfg-frs-mail').value,
-    fournisseurFranco: document.getElementById('cfg-frs-franco').value
+    mail: document.getElementById('cfg-mail').value, tel: document.getElementById('cfg-tel').value
   };
   closeModal('modal-reglages');
   setGlobalLoading(true);
@@ -1192,27 +1159,6 @@ async function supprimerFournisseurActuelCommande() {
   }
 }
 
-function chargerFournisseurSelectionne() {
-  const selectElem = document.getElementById('cfg-select-frs');
-  if (!selectElem) return;
-  const idx = selectElem.value;
-  if (idx === "") {
-    document.getElementById('cfg-frs-nom').value = '';
-    document.getElementById('cfg-frs-mail').value = '';
-    document.getElementById('cfg-frs-franco').value = '';
-    return;
-  }
-  try {
-    let list = JSON.parse(state.config.fournisseurs || '[]');
-    const f = list[idx];
-    if (f) {
-      document.getElementById('cfg-frs-nom').value = f.nom || '';
-      document.getElementById('cfg-frs-mail').value = f.email || '';
-      document.getElementById('cfg-frs-franco').value = f.franco || '';
-    }
-  } catch(e){}
-}
-
 function renderPanier() {
   let total = 0;
   document.getElementById('panier-body').innerHTML = panier.map((a, i) => {
@@ -1278,7 +1224,7 @@ window.addEventListener('DOMContentLoaded', () => {
   setupReader(); 
   loadData(); 
   switchMode('sortie'); 
-  startAutoRefresh(); // Lance le polling intelligent de 20s en cas de scan multi-utilisateurs
+  startAutoRefresh();
 });
 </script>
 </body>
