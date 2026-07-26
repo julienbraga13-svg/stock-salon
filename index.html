@@ -518,8 +518,16 @@ async function handleScannedCode(code) {
     p.qte = res.newQte;
     toast((type === 'Entrée' ? '+1 ' : '-1 ') + (p.designation || code) + ' → ' + res.newQte);
     
-    // Rafraîchissement immédiat des données globales après un scan/action
-    await loadData(true);
+    // Mise à jour locale immédiate (pas de rechargement réseau complet) :
+    // on ajoute la ligne d'historique renvoyée par le serveur et on ne redessine
+    // que les vues concernées, au lieu de tout recharger + tout re-rendre.
+    state.historique.unshift({
+      date: res.date, type, codeBarre: code, designation: p.designation,
+      quantite: 1, qteApres: res.newQte, commentaire: '', id: res.id
+    });
+    renderStock();
+    renderHistorique(type === 'Entrée' ? 'entree' : 'sortie');
+    renderSuggestions();
   } catch (err) { 
     toast('Erreur : ' + err.message); 
   } finally { 
@@ -580,8 +588,12 @@ async function validerQuantiteReception() {
         commandeEnCoursSelectionnee = null;
         renderCommandesReceptionList();
       }, 1500);
-    } else {
-      await loadData(true);
+    } else if (res.newQte !== undefined) {
+      // Mise à jour locale du stock concerné, sans rechargement réseau complet
+      const p = state.produits.find(x => x.codeBarre === String(dernierArticleScanneCode));
+      if (p) p.qte = res.newQte;
+      renderStock();
+      renderSuggestions();
     }
   } catch (err) { toast('Erreur : ' + err.message); } finally { setGlobalLoading(false); }
 }
