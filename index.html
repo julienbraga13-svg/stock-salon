@@ -163,11 +163,22 @@
   </div>
 
   <!-- Vue Commande -->
+<!-- Vue Commande -->
   <div class="view" id="view-commande">
     <div class="stock-container">
-      <div class="fournisseur-bar">
-        <span>Fournisseur : <strong id="frs-display">non configuré</strong></span>
-        <button class="btn-small btn-ghost" onclick="showModal('modal-reglages')">⚙ Réglages</button>
+      <div class="fournisseur-bar" style="flex-direction: column; align-items: stretch; gap: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 700;">Gestion du Fournisseur</span>
+          <button class="btn-small btn-ghost" onclick="showModal('modal-reglages')">⚙ Autres réglages</button>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <select id="cmd-select-frs" style="flex: 1;" onchange="selectionnerFournisseurCommande(this.value)">
+            <option value="">-- Choisir un fournisseur --</option>
+          </select>
+          <button class="btn-small btn-green" onclick="ouvrirModalNouveauFournisseur()">+ Ajouter</button>
+          <button class="btn-small btn-red" onclick="supprimerFournisseurActuelCommande()">Supprimer</button>
+        </div>
+        <div class="muted" id="frs-info-details" style="font-size: 11px;">Email : non configuré | Franco : 0.00 €</div>
       </div>
       
       <fieldset id="brouillons-section" style="display:none;">
@@ -928,20 +939,99 @@ function renderConfigForm() {
   setVal('cfg-nom', c.nom); setVal('cfg-representant', c.representant); setVal('cfg-siret', c.siret);
   setVal('cfg-adresse', c.adresse); setVal('cfg-mail', c.mail); setVal('cfg-tel', c.tel);
 
-  const selectFrs = document.getElementById('cfg-select-frs');
-  if (selectFrs && c.fournisseurs) {
-    let list = [];
-    try { list = JSON.parse(c.fournisseurs); } catch(e){}
-    selectFrs.innerHTML = '<option value="">-- Nouveau fournisseur --</option>' + 
-      list.map((f, idx) => `<option value="${idx}">${f.nom} (${f.email || 'Pas d\'email'})</option>`).join('');
+  // Gestion de la liste déroulante des fournisseurs dans la vue Commande
+  let list = [];
+  try { list = JSON.parse(c.fournisseurs || '[]'); } catch(e){}
+  
+  const selectFrs = document.getElementById('cmd-select-frs');
+  if (selectFrs) {
+    selectFrs.innerHTML = '<option value="">-- Choisir un fournisseur --</option>' + 
+      list.map((f, idx) => `<option value="${idx}" ${f.nom === c.fournisseurNom ? 'selected' : ''}>${f.nom}</option>`).join('');
   }
 
-  setVal('cfg-frs-nom', c.fournisseurNom); 
-  setVal('cfg-frs-mail', c.fournisseurEmail);
-  setVal('cfg-frs-franco', c.fournisseurFranco);
-  
-  const frsDisplay = document.getElementById('frs-display');
-  if (frsDisplay) frsDisplay.textContent = c.fournisseurNom ? c.fournisseurNom + ' (' + (c.fournisseurEmail||'—') + ')' : 'non configuré';
+  updateFrsDetailsUI();
+}
+
+function updateFrsDetailsUI() {
+  const c = state.config || {};
+  const info = document.getElementById('frs-info-details');
+  if (info) {
+    info.textContent = c.fournisseurNom ? 
+      `Email : ${c.fournisseurEmail || 'Non renseigné'} | Franco : ${c.fournisseurFranco || 0} € TTC` : 
+      'Aucun fournisseur actif sélectionné.';
+  }
+}
+
+function selectionnerFournisseurCommande(idx) {
+  if (idx === "") {
+    // Si désélection
+    saveConfigFields({ fournisseurNom: '', fournisseurEmail: '', fournisseurFranco: 0 });
+    return;
+  }
+  try {
+    let list = JSON.parse(state.config.fournisseurs || '[]');
+    const f = list[idx];
+    if (f) {
+      saveConfigFields({ fournisseurNom: f.nom, fournisseurEmail: f.email, fournisseurFranco: f.franco });
+    }
+  } catch(e){}
+}
+
+async function saveConfigFields(changes) {
+  const c = { ...(state.config || {}), ...changes };
+  setGlobalLoading(true);
+  try {
+    const res = await apiPost('saveConfig', c);
+    if (res.error) throw new Error(res.error);
+    await loadData();
+    toast('Fournisseur mis à jour ✔');
+  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
+}
+
+function ouvrirModalNouveauFournisseur() {
+  document.getElementById('new-frs-nom').value = '';
+  document.getElementById('new-frs-mail').value = '';
+  document.getElementById('new-frs-franco').value = '0';
+  showModal('modal-nouveau-frs');
+}
+
+async function submitNouveauFournisseurRapide() {
+  const nom = document.getElementById('new-frs-nom').value.trim();
+  const email = document.getElementById('new-frs-mail').value.trim();
+  const franco = Number(document.getElementById('new-frs-franco').value) || 0;
+
+  if (!nom) { toast('Le nom du fournisseur est requis'); return; }
+
+  closeModal('modal-nouveau-frs');
+  setGlobalLoading(true);
+  try {
+    // On envoie le nouveau fournisseur à sauvegarder (le backend gère l'ajout dans la liste globale et la sélection active)
+    const res = await apiPost('saveConfig', { ...state.config, fournisseurNom: nom, fournisseurEmail: email, fournisseurFranco: franco });
+    if (res.error) throw new Error(res.error);
+    toast('Fournisseur ajouté et sélectionné ✔');
+    await loadData();
+  } catch (e) { toast('Erreur : ' + e.message); } finally { setGlobalLoading(false); }
+}
+
+async function supprimerFournisseurActuelCommande() {
+  const nomActuel = state.config.fournisseurNom;
+  if (!nomActuel) {
+    toast("Aucun fournisseur actuellement sélectionné.");
+    return;
+  }
+  if (!confirm(`Voulez-vous vraiment supprimer le fournisseur "${nomActuel}" ?`)) return;
+
+  setGlobalLoading(true);
+  try {
+    const res = await apiPost('deleteFournisseur', { nom: nomActuel });
+    if (res.error) throw new Error(res.error);
+    toast('Fournisseur supprimé ✔');
+    await loadData();
+  } catch (e) {
+    toast('Erreur : ' + e.message);
+  } finally {
+    setGlobalLoading(false);
+  }
 }
 
 function chargerFournisseurSelectionne() {
@@ -1025,6 +1115,18 @@ function escapeHtml(str) { return String(str).replace(/&/g, '&amp;').replace(/</
 function formatDate(dateStr) { if (!dateStr) return ''; const d = new Date(dateStr); return isNaN(d) ? dateStr : d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
 
 window.addEventListener('DOMContentLoaded', () => { setupReader(); loadData(); switchMode('sortie'); });
+ <div class="modal-overlay" id="modal-nouveau-frs">
+  <div class="modal-card">
+    <h3>Nouveau fournisseur</h3>
+    <label>Nom du fournisseur</label><input type="text" id="new-frs-nom" placeholder="Nom de l'entreprise">
+    <label>Email de commande</label><input type="text" id="new-frs-mail" placeholder="email@fournisseur.com">
+    <label>Franco de port (€ TTC)</label><input type="number" id="new-frs-franco" min="0" step="0.01" value="0">
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-nouveau-frs')">Annuler</button>
+      <button class="btn-primary" onclick="submitNouveauFournisseurRapide()">Enregistrer</button>
+    </div>
+  </div>
+</div>
 </script>
 </body>
 </html>
