@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Douchette iOS - Prétraitement</title>
+    <title>Douchette iOS - Moteur ZXing</title>
     
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- Import de la bibliothèque ZXing -->
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
     
     <style>
         body {
@@ -20,6 +21,34 @@
             text-align: center;
             margin-top: 0;
         }
+        /* Conteneur vidéo */
+        #video-container {
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            background-color: #000;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        /* La vidéo prend 100% du conteneur */
+        video {
+            width: 100%;
+            display: block;
+            object-fit: cover;
+        }
+        /* Guide visuel (uniquement esthétique, n'entrave pas le scan logiciel) */
+        .scan-guide {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 100px;
+            border: 2px solid #34c759;
+            border-radius: 8px;
+            box-shadow: 0 0 0 4000px rgba(0,0,0,0.5); /* Assombrit tout autour */
+            pointer-events: none; /* Laisse passer les clics */
+        }
         .btn {
             display: block;
             width: 100%;
@@ -31,12 +60,14 @@
             color: white;
             background-color: #007aff;
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
             cursor: pointer;
             box-sizing: border-box;
         }
-        #file-input { display: none; }
-
+        .btn-stop {
+            background-color: #ff3b30;
+            display: none;
+        }
         .stock-container {
             background: white;
             border-radius: 12px;
@@ -62,30 +93,23 @@
             font-size: 14px;
             font-weight: bold;
         }
-        #status {
-            text-align: center;
-            display: none;
-            font-weight: bold;
-            margin-bottom: 15px;
-        }
-        .processing { color: #007aff; }
-        .error { color: #ff3b30; }
-        
-        #processing-canvas { display: none; }
     </style>
 </head>
 <body>
 
-    <h1>📦 Douchette iOS Pro1</h1>
+    <h1>📦 Gestion de Stock (ZXing)</h1>
     
-    <label for="file-input" class="btn">📸 Prendre Photo & Scanner</label>
-    <input type="file" id="file-input" accept="image/*" capture="environment">
+    <button id="btn-start" class="btn">Démarrer la douchette</button>
+    <button id="btn-stop" class="btn btn-stop">Arrêter la caméra</button>
 
-    <div id="status"></div>
-    <canvas id="processing-canvas"></canvas>
+    <div id="video-container">
+        <!-- Les attributs playsinline, autoplay et muted sont OBLIGATOIRES sur iOS pour que la vidéo ne s'ouvre pas en plein écran natif -->
+        <video id="video" playsinline autoplay muted></video>
+        <div class="scan-guide" id="scan-guide" style="display:none;"></div>
+    </div>
 
     <div class="stock-container">
-        <h2>Inventaire en cours</h2>
+        <h2>Inventaire</h2>
         <table id="stock-table">
             <thead>
                 <tr>
@@ -99,89 +123,81 @@
     </div>
 
     <script>
+        let codeReader;
+        let isScanning = false;
         let stock = {}; 
-        const fileInput = document.getElementById('file-input');
+        let lastScannedCode = null;
+        let lastScanTime = 0;
+
+        const btnStart = document.getElementById('btn-start');
+        const btnStop = document.getElementById('btn-stop');
         const stockBody = document.getElementById('stock-body');
-        const statusIndicator = document.getElementById('status');
-        const canvas = document.getElementById('processing-canvas');
-        const ctx = canvas.getContext('2d');
+        const scanGuide = document.getElementById('scan-guide');
 
-        const html5QrCode = new Html5Qrcode("processing-canvas");
-
-        fileInput.addEventListener('change', function(e) {
-            if (e.target.files.length == 0) return;
-
-            const imageFile = e.target.files[0];
-            statusIndicator.style.display = 'block';
-            statusIndicator.textContent = "Traitement de l'image...";
-            statusIndicator.className = "processing";
-
-            processImage(imageFile);
-        });
-
-        function processImage(file) {
-            const reader = new FileReader();
+        function initScanner() {
+            // Instanciation du lecteur multiformat ZXing
+            codeReader = new ZXing.BrowserMultiFormatReader();
             
-            reader.onload = function(event) {
-                const img = new Image();
-                
-                img.onload = function() {
-                    // 1. Redimensionnement
-                    const MAX_WIDTH = 1000; 
-                    let width = img.width;
-                    let height = img.height;
-
-                    if (width > MAX_WIDTH) {
-                        height *= MAX_WIDTH / width;
-                        width = MAX_WIDTH;
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    ctx.drawImage(img, 0, 0, width, height);
-
-                    // 2. Traitement d'image (Contraste)
-                    statusIndicator.textContent = "Nettoyage du code...";
-                    const imageData = ctx.getImageData(0, 0, width, height);
-                    const data = imageData.data;
-
-                    for (let i = 0; i < data.length; i += 4) {
-                        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                        const threshold = 128;
-                        const contrasted = avg > threshold ? 255 : 0;
-                        data[i]     = contrasted;
-                        data[i + 1] = contrasted;
-                        data[i + 2] = contrasted;
-                    }
-                    ctx.putImageData(imageData, 0, 0);
-
-                    // 3. Analyse
-                    statusIndicator.textContent = "Analyse finale...";
+            // On récupère les caméras disponibles
+            codeReader.getVideoInputDevices()
+                .then((videoInputDevices) => {
+                    let selectedDeviceId = null;
                     
-                    canvas.toBlob(function(blob) {
-                        // Création d'un véritable objet File pour éviter les erreurs de lecture
-                        const processedFile = new File([blob], "image-nettoyee.jpg", { type: "image/jpeg" });
-                        
-                        html5QrCode.scanFile(processedFile, true)
-                            .then(decodedText => {
-                                statusIndicator.style.display = 'none';
-                                ajouterAuStock(decodedText);
-                                if (navigator.vibrate) navigator.vibrate(200);
-                                fileInput.value = ""; 
-                            })
-                            .catch(err => {
-                                statusIndicator.textContent = "Aucun code détecté. Réessayez avec une lumière bien directe.";
-                                statusIndicator.className = "error";
-                                fileInput.value = ""; 
-                            });
-                    }, 'image/jpeg', 0.9);
-                };
-                
-                // LE BUG ETAIT ICI. C'est corrigé :
-                img.src = event.target.result;
-            };
-            
-            reader.readAsDataURL(file);
+                    // On tente de forcer la caméra arrière
+                    if (videoInputDevices.length > 0) {
+                        selectedDeviceId = videoInputDevices[0].deviceId;
+                        videoInputDevices.forEach((device) => {
+                            if (device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('arrière')) {
+                                selectedDeviceId = device.deviceId;
+                            }
+                        });
+                    }
+
+                    if (!selectedDeviceId) {
+                        alert("Impossible de détecter une caméra sur cet appareil.");
+                        return;
+                    }
+
+                    // Démarre le scan sur l'élément vidéo HTML que nous avons préparé
+                    codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
+                        if (result) {
+                            const code = result.getText();
+                            const currentTime = new Date().getTime();
+                            
+                            // Anti-rebond (1.5s)
+                            if (code === lastScannedCode && (currentTime - lastScanTime) < 1500) {
+                                return;
+                            }
+
+                            lastScannedCode = code;
+                            lastScanTime = currentTime;
+
+                            ajouterAuStock(code);
+                            
+                            if (navigator.vibrate) {
+                                navigator.vibrate(100);
+                            }
+                        }
+                    });
+
+                    isScanning = true;
+                    btnStart.style.display = 'none';
+                    btnStop.style.display = 'block';
+                    scanGuide.style.display = 'block';
+                })
+                .catch((err) => {
+                    alert("Erreur d'accès à la caméra : " + err);
+                });
+        }
+
+        function stopScanner() {
+            if (codeReader && isScanning) {
+                codeReader.reset(); // Arrête complètement le flux ZXing
+                isScanning = false;
+                btnStart.style.display = 'block';
+                btnStop.style.display = 'none';
+                scanGuide.style.display = 'none';
+            }
         }
 
         function ajouterAuStock(code) {
@@ -198,15 +214,13 @@
             stockBody.innerHTML = ''; 
             for (const [code, quantity] of Object.entries(stock)) {
                 const tr = document.createElement('tr');
-                const tdCode = document.createElement('td');
-                tdCode.textContent = code;
-                const tdQty = document.createElement('td');
-                tdQty.innerHTML = `<span class="badge">${quantity}</span>`;
-                tr.appendChild(tdCode);
-                tr.appendChild(tdQty);
+                tr.innerHTML = `<td>${code}</td><td><span class="badge">${quantity}</span></td>`;
                 stockBody.appendChild(tr);
             }
         }
+
+        btnStart.addEventListener('click', initScanner);
+        btnStop.addEventListener('click', stopScanner);
     </script>
 </body>
 </html>
