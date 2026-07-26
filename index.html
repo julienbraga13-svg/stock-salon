@@ -52,15 +52,32 @@
   .scanner-section { flex-shrink: 0; display: flex; flex-direction: column; }
   .mode-label { text-align: center; font-weight: 700; font-size: 13px; margin-bottom: 4px; color: #34c759; }
   .scanner-section.mode-sortie .mode-label { color: #ff3b30; }
+  
+  /* Selecteur de caméra */
+  #camera-select {
+    display: none; width: 100%; padding: 8px; border-radius: 8px;
+    border: 1px solid #c6c6c8; font-size: 14px; margin-bottom: 6px;
+    background: #fff; outline: none;
+  }
+
   #video-container {
     width: 100%; height: 22vh; border-radius: 12px; overflow: hidden;
     background-color: #000; margin-bottom: 6px; position: relative;
   }
   video { width: 100%; height: 100%; display: block; object-fit: cover; }
+  
+  /* Flash Effect */
+  #flash-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: white; opacity: 0; pointer-events: none;
+    transition: opacity 0.3s ease-out; z-index: 10;
+  }
+  #flash-overlay.flash-active { opacity: 0.9; transition: none; }
+
   .scan-guide {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
     width: 95%; height: 85%; border: 2px solid #34c759; border-radius: 8px;
-    box-shadow: 0 0 0 2000px rgba(0,0,0,0.4); pointer-events: none;
+    box-shadow: 0 0 0 2000px rgba(0,0,0,0.4); pointer-events: none; z-index: 5;
   }
   .scanner-section.mode-sortie .scan-guide { border-color: #ff3b30; }
   #flash-msg { text-align: center; font-weight: bold; color: #34c759; height: 18px; font-size: 13px; }
@@ -164,9 +181,11 @@
   <!-- Scanner -->
   <div class="scanner-section" id="scanner-section">
     <div class="mode-label" id="scanner-mode-label">Mode Entrée</div>
+    <select id="camera-select" onchange="changeCamera()"></select> <!-- NOUVEAU: Selecteur caméra -->
     <div id="video-container">
       <video id="video" playsinline autoplay muted></video>
       <div class="scan-guide" id="scan-guide"></div>
+      <div id="flash-overlay"></div> <!-- NOUVEAU: Flash overlay -->
     </div>
     <div id="flash-msg"></div>
     <div class="manual-row">
@@ -383,7 +402,7 @@ let currentMode = 'entree';
 let dataLoaded = false;
 let consoChartInstance = null;
 
-// ================== AUDIO (BIP) ==================
+// ================== AUDIO (BIP) & FLASH ==================
 function playBeep() {
   try {
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -391,26 +410,36 @@ function playBeep() {
     const gainNode = audioCtx.createGain();
 
     oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // Fréquence du bip (800 Hz)
+    oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); 
     gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
 
     oscillator.connect(gainNode);
     gainNode.connect(audioCtx.destination);
 
     oscillator.start();
-    oscillator.stop(audioCtx.currentTime + 0.15); // Durée du bip : 150ms
+    oscillator.stop(audioCtx.currentTime + 0.15); 
   } catch (e) {
     console.log("Audio non supporté ou bloqué par le navigateur", e);
   }
 }
 
-// ================== SCANNER ==================
+function triggerFlash() {
+  const overlay = document.getElementById('flash-overlay');
+  overlay.classList.add('flash-active');
+  setTimeout(() => {
+    overlay.classList.remove('flash-active');
+  }, 100);
+}
+
+// ================== SCANNER & CAMERAS ==================
 let codeReader;
 let scannerRunning = false;
 let candidateCode = null;
 let candidateCount = 0;
 let lastValidatedCode = null;
 let lastValidatedTime = 0;
+let selectedDeviceId = null;
+let camerasPopulated = false;
 const flashMsg = document.getElementById('flash-msg');
 
 function setupReader() {
@@ -426,17 +455,57 @@ function setupReader() {
   codeReader = new ZXing.BrowserMultiFormatReader(hints);
 }
 
+async function populateCameras() {
+  if (camerasPopulated) return;
+  try {
+    const devices = await codeReader.listVideoInputDevices();
+    const select = document.getElementById('camera-select');
+    
+    if (devices.length > 1) {
+      select.innerHTML = '<option value="">-- Objectif par défaut (iPhone recommandé) --</option>';
+      devices.forEach((device, index) => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.text = device.label || `Caméra ${index + 1}`;
+        if (device.deviceId === selectedDeviceId) option.selected = true;
+        select.appendChild(option);
+      });
+      select.style.display = 'block';
+      camerasPopulated = true;
+    }
+  } catch (e) {
+    console.warn("Impossible de lister les caméras :", e);
+  }
+}
+
+function changeCamera() {
+  const select = document.getElementById('camera-select');
+  selectedDeviceId = select.value || null;
+  stopScanner();
+  setTimeout(() => { startScanner(); }, 300);
+}
+
 function startScanner() {
   if (scannerRunning) return;
   scannerRunning = true;
-  const constraints = {
+  
+  let constraints = {
     video: {
-      facingMode: "environment",
       width: { ideal: 1280 },
       height: { ideal: 720 },
       advanced: [{ focusMode: "continuous" }]
     }
   };
+
+  // Si l'utilisateur a choisi une caméra, on force l'ID. Sinon on garde le paramètre sûr pour iPhone.
+  if (selectedDeviceId) {
+    constraints.video.deviceId = { exact: selectedDeviceId };
+  } else {
+    constraints.video.facingMode = "environment";
+  }
+
+  // Tenter de lister les caméras un peu après la demande d'accès
+  setTimeout(populateCameras, 1500);
 
   codeReader.decodeFromConstraints(constraints, 'video', (result, err) => {
     if (result) {
@@ -460,7 +529,9 @@ function startScanner() {
         candidateCode = null;
         candidateCount = 0;
 
-        playBeep(); // 🔊 Déclenchement du bip sonore ici !
+        playBeep(); // 🔊 Bip
+        triggerFlash(); // ⚡ Flash
+        
         if (navigator.vibrate) navigator.vibrate(100);
         
         flashMsg.textContent = "✔ " + rawCode;
@@ -487,7 +558,7 @@ function manualSubmit() {
   const val = input.value.trim();
   if (!val) return;
   input.value = '';
-  playBeep(); // 🔊 Bip aussi lors de la validation manuelle
+  playBeep(); 
   handleScannedCode(val);
 }
 
@@ -717,7 +788,7 @@ function renderPanier() {
       <td>${t.toFixed(2)} €</td>
       <td><button class="btn-small btn-red" onclick="removeFromPanier(${i})">✕</button></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="4" class="muted">Panier vide</td></tr>';
+  }).join('') || '<tr><td colspan="4" class="muted">Panier empty</td></tr>';
   document.getElementById('panier-total').textContent = total.toFixed(2) + ' €';
 }
 
@@ -838,7 +909,7 @@ function formatDate(dateStr) {
 window.addEventListener('DOMContentLoaded', () => {
   setupReader();
   loadData();
-  switchMode('entree');
+  switchMode('sortie');
 });
 </script>
 </body>
